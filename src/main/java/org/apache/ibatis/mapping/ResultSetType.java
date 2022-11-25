@@ -18,6 +18,8 @@ package org.apache.ibatis.mapping;
 import java.sql.ResultSet;
 
 /**
+ * ResultSet 类型枚举，对应 JDBC 中的 ResultSet 类型配置。
+ *
  * @author Clinton Begin
  */
 public enum ResultSetType {
@@ -31,12 +33,18 @@ public enum ResultSetType {
   SCROLL_INSENSITIVE(ResultSet.TYPE_SCROLL_INSENSITIVE),
   SCROLL_SENSITIVE(ResultSet.TYPE_SCROLL_SENSITIVE);
 
+  /** 对应 JDBC 中 ResultSet 的类型常量值 */
   private final int value;
 
   ResultSetType(int value) {
     this.value = value;
   }
 
+  /**
+   * 获取枚举对应的 JDBC 类型值。
+   *
+   * @return JDBC ResultSet 类型常量
+   */
   public int getValue() {
     return value;
   }

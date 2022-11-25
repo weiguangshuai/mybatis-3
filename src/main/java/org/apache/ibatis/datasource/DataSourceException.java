@@ -18,24 +18,31 @@ package org.apache.ibatis.datasource;
 import org.apache.ibatis.exceptions.PersistenceException;
 
 /**
+ * 数据源相关的异常基类，封装数据源操作中可能出现的错误。
+ *
  * @author Clinton Begin
  */
 public class DataSourceException extends PersistenceException {
 
+  /** 序列化版本标识 */
   private static final long serialVersionUID = -5251396250407091334L;
 
+  /** 构造无详细信息的异常 */
   public DataSourceException() {
     super();
   }
 
+  /** 构造带指定消息的异常 */
   public DataSourceException(String message) {
     super(message);
   }
 
+  /** 构造带详细消息和根因的异常 */
   public DataSourceException(String message, Throwable cause) {
     super(message, cause);
   }
 
+  /** 构造带根因的异常 */
   public DataSourceException(Throwable cause) {
     super(cause);
   }

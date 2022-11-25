@@ -26,7 +26,7 @@ import org.apache.ibatis.logging.Log;
 import org.apache.ibatis.reflection.ExceptionUtil;
 
 /**
- * PreparedStatement proxy to add logging.
+ * PreparedStatement 的代理类，用于记录 SQL 执行日志。
  *
  * @author Clinton Begin
  * @author Eduardo Macarron
@@ -34,6 +34,7 @@ import org.apache.ibatis.reflection.ExceptionUtil;
  */
 public final class PreparedStatementLogger extends BaseJdbcLogger implements InvocationHandler {
 
+  /** 被代理的 PreparedStatement 对象 */
   private final PreparedStatement statement;
 
   private PreparedStatementLogger(PreparedStatement stmt, Log statementLog, int queryStack) {
@@ -41,12 +42,23 @@ public final class PreparedStatementLogger extends BaseJdbcLogger implements Inv
     this.statement = stmt;
   }
 
+  /**
+   * 处理 PreparedStatement 方法调用，记录日志并返回代理结果。
+   *
+   * @param proxy  代理对象
+   * @param method 被调用的方法
+   * @param params 方法参数
+   * @return 方法执行结果
+   * @throws Throwable 可能抛出的异常
+   */
   @Override
   public Object invoke(Object proxy, Method method, Object[] params) throws Throwable {
     try {
+      // Object 类的方法直接调用自身实现
       if (Object.class.equals(method.getDeclaringClass())) {
         return method.invoke(this, params);
       }
+      // 执行 SQL 的方法，记录参数并返回包装后的 ResultSet
       if (EXECUTE_METHODS.contains(method.getName())) {
         if (isDebugEnabled()) {
           debug("Parameters: " + getParameterValueString(), true);
@@ -59,6 +71,7 @@ public final class PreparedStatementLogger extends BaseJdbcLogger implements Inv
           return method.invoke(statement, params);
         }
       } else if (SET_METHODS.contains(method.getName())) {
+        // 设置参数的方法，记录列信息
         if ("setNull".equals(method.getName())) {
           setColumn(params[0], null);
         } else {
@@ -66,9 +79,11 @@ public final class PreparedStatementLogger extends BaseJdbcLogger implements Inv
         }
         return method.invoke(statement, params);
       } else if ("getResultSet".equals(method.getName())) {
+        // 获取 ResultSet 时包装为日志版本
         ResultSet rs = (ResultSet) method.invoke(statement, params);
         return rs == null ? null : ResultSetLogger.newInstance(rs, statementLog, queryStack);
       } else if ("getUpdateCount".equals(method.getName())) {
+        // 记录更新计数
         int updateCount = (Integer) method.invoke(statement, params);
         if (updateCount != -1) {
           debug("   Updates: " + updateCount, false);
@@ -83,12 +98,12 @@ public final class PreparedStatementLogger extends BaseJdbcLogger implements Inv
   }
 
   /**
-   * Creates a logging version of a PreparedStatement.
+   * 创建带有日志功能的 PreparedStatement 代理对象。
    *
-   * @param stmt - the statement
-   * @param statementLog - the statement log
-   * @param queryStack - the query stack
-   * @return - the proxy
+   * @param stmt           原始的 PreparedStatement
+   * @param statementLog   日志记录器
+   * @param queryStack     查询堆栈层级
+   * @return 包装后的 PreparedStatement 代理
    */
   public static PreparedStatement newInstance(PreparedStatement stmt, Log statementLog, int queryStack) {
     InvocationHandler handler = new PreparedStatementLogger(stmt, statementLog, queryStack);
@@ -97,9 +112,9 @@ public final class PreparedStatementLogger extends BaseJdbcLogger implements Inv
   }
 
   /**
-   * Return the wrapped prepared statement.
+   * 获取被代理的原始 PreparedStatement 对象。
    *
-   * @return the PreparedStatement
+   * @return 原始的 PreparedStatement
    */
   public PreparedStatement getPreparedStatement() {
     return statement;

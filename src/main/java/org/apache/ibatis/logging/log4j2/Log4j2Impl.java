@@ -21,15 +21,24 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.spi.AbstractLogger;
 
 /**
+ * Log4j2 日志实现，适配 MyBatis 的 Log 接口。
+ *
  * @author Eduardo Macarron
  */
 public class Log4j2Impl implements Log {
 
+  /** 内部委托的 Log4j2 日志实例 */
   private final Log log;
 
+  /**
+   * 构造方法，根据传入的类名创建对应的 Log4j2 日志实例。
+   *
+   * @param clazz 日志所属的类，用于定位日志来源
+   */
   public Log4j2Impl(String clazz) {
     Logger logger = LogManager.getLogger(clazz);
 
+    // 根据 Logger 类型选择合适的实现：AbstractLogger 使用抽象日志实现，其他使用标准日志实现
     if (logger instanceof AbstractLogger) {
       log = new Log4j2AbstractLoggerImpl((AbstractLogger) logger);
     } else {
@@ -67,6 +76,11 @@ public class Log4j2Impl implements Log {
     log.trace(s);
   }
 
+  /**
+   * 输出警告日志。
+   *
+   * @param s 日志消息
+   */
   @Override
   public void warn(String s) {
     log.warn(s);

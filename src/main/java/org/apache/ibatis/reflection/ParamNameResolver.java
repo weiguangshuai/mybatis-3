@@ -31,10 +31,15 @@ import org.apache.ibatis.session.Configuration;
 import org.apache.ibatis.session.ResultHandler;
 import org.apache.ibatis.session.RowBounds;
 
+/**
+ * 方法参数名称解析器，负责将方法参数映射为可被 SQL provider 使用的名称。
+ */
 public class ParamNameResolver {
 
+  /** 通用参数名称前缀，用于生成 param1, param2 等参数名 */
   public static final String GENERIC_NAME_PREFIX = "param";
 
+  /** 是否使用方法的实际参数名（需要 JDK 8+ -parameters 编译参数支持） */
   private final boolean useActualParamName;
 
   /**
@@ -52,8 +57,14 @@ public class ParamNameResolver {
    */
   private final SortedMap<Integer, String> names;
 
+  /** 标记是否存在 @Param 注解，用于优化单参数场景的处理逻辑 */
   private boolean hasParamAnnotation;
 
+  /**
+   * 构造方法，解析方法参数并生成参数名到索引的映射。
+   * @param config MyBatis 配置对象
+   * @param method 要解析的 Mapper 方法
+   */
   public ParamNameResolver(Configuration config, Method method) {
     this.useActualParamName = config.isUseActualParamName();
     final Class<?>[] paramTypes = method.getParameterTypes();
@@ -90,10 +101,12 @@ public class ParamNameResolver {
     names = Collections.unmodifiableSortedMap(map);
   }
 
+  /** 获取方法的实际参数名（依赖编译参数） */
   private String getActualParamName(Method method, int paramIndex) {
     return ParamNameUtil.getParamNames(method).get(paramIndex);
   }
 
+  /** 判断是否为特殊参数（RowBounds 或 ResultHandler），这些参数不参与名称解析 */
   private static boolean isSpecialParameter(Class<?> clazz) {
     return RowBounds.class.isAssignableFrom(clazz) || ResultHandler.class.isAssignableFrom(clazz);
   }

@@ -33,5 +33,12 @@ public interface DatabaseIdProvider {
     // NOP
   }
 
+  /**
+   * 根据数据源获取数据库标识符，用于区分不同的数据库类型。
+   *
+   * @param dataSource 数据源
+   * @return 数据库标识符（如 mysql、oracle 等），无法确定时返回 null
+   * @throws SQLException 获取数据库信息时可能抛出异常
+   */
   String getDatabaseId(DataSource dataSource) throws SQLException;
 }

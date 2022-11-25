@@ -16,8 +16,22 @@
 package org.apache.ibatis.mapping;
 
 /**
+ * SQL 命令类型枚举。
+ * 表示 MyBatis 中可执行的 SQL 操作类型，用于区分不同的 Mapper 方法对应的 SQL 类别。
+ *
  * @author Clinton Begin
  */
 public enum SqlCommandType {
-  UNKNOWN, INSERT, UPDATE, DELETE, SELECT, FLUSH
+  /** 未知或未匹配的 SQL 类型 */
+  UNKNOWN,
+  /** 插入操作 */
+  INSERT,
+  /** 更新操作 */
+  UPDATE,
+  /** 删除操作 */
+  DELETE,
+  /** 查询操作 */
+  SELECT,
+  /** 刷新操作（如刷新语句缓存） */
+  FLUSH
 }

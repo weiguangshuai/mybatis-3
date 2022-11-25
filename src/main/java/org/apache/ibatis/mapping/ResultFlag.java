@@ -16,6 +16,7 @@
 package org.apache.ibatis.mapping;
 
 /**
+ * 结果映射标志枚举，用于标记 Result 的特殊属性
  * @author Clinton Begin
  */
 public enum ResultFlag {

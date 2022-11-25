@@ -22,48 +22,93 @@ import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 
 /**
+ * Log4j2 日志实现，将 MyBatis 日志桥接到 Log4j2 框架。
+ *
  * @author Eduardo Macarron
  */
 public class Log4j2LoggerImpl implements Log {
 
+  /** Log4j2 标记，用于标识 MyBatis 产生的日志 */
   private static final Marker MARKER = MarkerManager.getMarker(LogFactory.MARKER);
 
+  /** Log4j2 的 Logger 实例，实际日志输出委托给此对象 */
   private final Logger log;
 
+  /**
+   * 构造方法，接收 Log4j2 的 Logger 实例。
+   *
+   * @param logger Log4j2 Logger 对象
+   */
   public Log4j2LoggerImpl(Logger logger) {
     log = logger;
   }
 
+  /**
+   * 检查调试级别日志是否启用。
+   *
+   * @return 如果启用调试级别返回 true
+   */
   @Override
   public boolean isDebugEnabled() {
     return log.isDebugEnabled();
   }
 
+  /**
+   * 检查跟踪级别日志是否启用。
+   *
+   * @return 如果启用跟踪级别返回 true
+   */
   @Override
   public boolean isTraceEnabled() {
     return log.isTraceEnabled();
   }
 
+  /**
+   * 记录错误级别日志，包含异常信息。
+   *
+   * @param s 日志消息
+   * @param e 异常对象
+   */
   @Override
   public void error(String s, Throwable e) {
     log.error(MARKER, s, e);
   }
 
+  /**
+   * 记录错误级别日志。
+   *
+   * @param s 日志消息
+   */
   @Override
   public void error(String s) {
     log.error(MARKER, s);
   }
 
+  /**
+   * 记录调试级别日志。
+   *
+   * @param s 日志消息
+   */
   @Override
   public void debug(String s) {
     log.debug(MARKER, s);
   }
 
+  /**
+   * 记录跟踪级别日志。
+   *
+   * @param s 日志消息
+   */
   @Override
   public void trace(String s) {
     log.trace(MARKER, s);
   }
 
+  /**
+   * 记录警告级别日志。
+   *
+   * @param s 日志消息
+   */
   @Override
   public void warn(String s) {
     log.warn(MARKER, s);

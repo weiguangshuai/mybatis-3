@@ -33,8 +33,10 @@ import org.apache.ibatis.reflection.ExceptionUtil;
  */
 public final class StatementLogger extends BaseJdbcLogger implements InvocationHandler {
 
+  /** 被代理的 JDBC Statement 对象 */
   private final Statement statement;
 
+  /** 私有构造函数，通过 newInstance 方法创建代理实例 */
   private StatementLogger(Statement stmt, Log statementLog, int queryStack) {
     super(statementLog, queryStack);
     this.statement = stmt;
@@ -43,13 +45,16 @@ public final class StatementLogger extends BaseJdbcLogger implements InvocationH
   @Override
   public Object invoke(Object proxy, Method method, Object[] params) throws Throwable {
     try {
+      // Object 类的方法直接转发
       if (Object.class.equals(method.getDeclaringClass())) {
         return method.invoke(this, params);
       }
+      // 执行 SQL 的方法需要记录日志
       if (EXECUTE_METHODS.contains(method.getName())) {
         if (isDebugEnabled()) {
           debug(" Executing: " + removeExtraWhitespace((String) params[0]), true);
         }
+        // executeQuery 返回 ResultSet，需要包装为可日志记录的结果集
         if ("executeQuery".equals(method.getName())) {
           ResultSet rs = (ResultSet) method.invoke(statement, params);
           return rs == null ? null : ResultSetLogger.newInstance(rs, statementLog, queryStack);

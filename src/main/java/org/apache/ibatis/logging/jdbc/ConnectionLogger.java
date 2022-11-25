@@ -26,7 +26,7 @@ import org.apache.ibatis.logging.Log;
 import org.apache.ibatis.reflection.ExceptionUtil;
 
 /**
- * Connection proxy to add logging.
+ * Connection 的代理类，用于在执行 SQL 准备操作时记录日志。
  *
  * @author Clinton Begin
  * @author Eduardo Macarron
@@ -34,32 +34,56 @@ import org.apache.ibatis.reflection.ExceptionUtil;
  */
 public final class ConnectionLogger extends BaseJdbcLogger implements InvocationHandler {
 
+  /** 被代理的真实数据库连接 */
   private final Connection connection;
 
+  /**
+   * 构造方法，初始化日志记录器并保存真实连接。
+   *
+   * @param conn 原始数据库连接
+   * @param statementLog 语句日志记录器
+   * @param queryStack 查询堆栈层级
+   */
   private ConnectionLogger(Connection conn, Log statementLog, int queryStack) {
     super(statementLog, queryStack);
     this.connection = conn;
   }
 
+  /**
+   * 处理被代理Connection对象上的方法调用。
+   * 当调用 prepareStatement 或 prepareCall 时记录 SQL 语句；
+   * 当调用 createStatement 时包装返回的 Statement 对象。
+   *
+   * @param proxy 代理对象
+   * @param method 被调用的方法
+   * @param params 方法参数
+   * @return 方法执行结果
+   * @throws Throwable 方法执行过程中的异常
+   */
   @Override
   public Object invoke(Object proxy, Method method, Object[] params)
       throws Throwable {
     try {
+      // Object 类的方法直接调用，不做任何包装
       if (Object.class.equals(method.getDeclaringClass())) {
         return method.invoke(this, params);
       }
+      // 预处理 SQL 语句的方法，输出日志并包装 PreparedStatement
       if ("prepareStatement".equals(method.getName()) || "prepareCall".equals(method.getName())) {
         if (isDebugEnabled()) {
           debug(" Preparing: " + removeExtraWhitespace((String) params[0]), true);
         }
         PreparedStatement stmt = (PreparedStatement) method.invoke(connection, params);
+        // 返回包装后的 PreparedStatement，用于记录后续执行日志
         stmt = PreparedStatementLogger.newInstance(stmt, statementLog, queryStack);
         return stmt;
       } else if ("createStatement".equals(method.getName())) {
+        // 创建普通 Statement，包装后返回
         Statement stmt = (Statement) method.invoke(connection, params);
         stmt = StatementLogger.newInstance(stmt, statementLog, queryStack);
         return stmt;
       } else {
+        // 其他方法直接转发给真实连接
         return method.invoke(connection, params);
       }
     } catch (Throwable t) {
@@ -68,15 +92,12 @@ public final class ConnectionLogger extends BaseJdbcLogger implements Invocation
   }
 
   /**
-   * Creates a logging version of a connection.
+   * 创建带日志功能的 Connection 代理对象。
    *
-   * @param conn
-   *          the original connection
-   * @param statementLog
-   *          the statement log
-   * @param queryStack
-   *          the query stack
-   * @return the connection with logging
+   * @param conn 原始数据库连接
+   * @param statementLog 语句日志记录器
+   * @param queryStack 查询堆栈层级
+   * @return 带日志功能的 Connection 代理
    */
   public static Connection newInstance(Connection conn, Log statementLog, int queryStack) {
     InvocationHandler handler = new ConnectionLogger(conn, statementLog, queryStack);
@@ -85,9 +106,9 @@ public final class ConnectionLogger extends BaseJdbcLogger implements Invocation
   }
 
   /**
-   * return the wrapped connection.
+   * 获取被代理的真实数据库连接。
    *
-   * @return the connection
+   * @return 原始 Connection 对象
    */
   public Connection getConnection() {
     return connection;

@@ -18,10 +18,16 @@ package org.apache.ibatis.datasource.pooled;
 import org.apache.ibatis.datasource.unpooled.UnpooledDataSourceFactory;
 
 /**
+ * 连接池数据源工厂，用于创建带连接池的 {@link PooledDataSource} 实例。
+ *
  * @author Clinton Begin
  */
 public class PooledDataSourceFactory extends UnpooledDataSourceFactory {
 
+  /**
+   * 构造方法，初始化连接池数据源。
+   * 创建 PooledDataSource 实例并赋值给父类的 dataSource 字段。
+   */
   public PooledDataSourceFactory() {
     this.dataSource = new PooledDataSource();
   }

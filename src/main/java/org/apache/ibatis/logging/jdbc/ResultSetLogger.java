@@ -39,9 +39,13 @@ import org.apache.ibatis.reflection.ExceptionUtil;
 public final class ResultSetLogger extends BaseJdbcLogger implements InvocationHandler {
 
   private static final Set<Integer> BLOB_TYPES = new HashSet<>();
+  /** 标记是否首次调用 next() 方法 */
   private boolean first = true;
+  /** 已遍历的行数统计 */
   private int rows;
+  /** 委托的 ResultSet 对象 */
   private final ResultSet rs;
+  /** 记录 BLOB 类型列的索引集合 */
   private final Set<Integer> blobColumns = new HashSet<>();
 
   static {
@@ -60,13 +64,25 @@ public final class ResultSetLogger extends BaseJdbcLogger implements InvocationH
     this.rs = rs;
   }
 
+  /**
+   * 处理 ResultSet 方法调用的代理逻辑。
+   * 当调用 next() 方法时，记录遍历到的行数和列值。
+   *
+   * @param proxy 代理对象
+   * @param method 调用的方法
+   * @param params 方法参数
+   * @return 方法执行结果
+   * @throws Throwable 执行过程中的异常
+   */
   @Override
   public Object invoke(Object proxy, Method method, Object[] params) throws Throwable {
     try {
+      // Object 类的方法直接调用自身实现
       if (Object.class.equals(method.getDeclaringClass())) {
         return method.invoke(this, params);
       }
       Object o = method.invoke(rs, params);
+      // 监控 next() 方法调用，记录行遍历信息
       if ("next".equals(method.getName())) {
         if ((Boolean) o) {
           rows++;
@@ -80,6 +96,7 @@ public final class ResultSetLogger extends BaseJdbcLogger implements InvocationH
             printColumnValues(columnCount);
           }
         } else {
+          // 遍历结束，输出总行数
           debug("     Total: " + rows, false);
         }
       }
@@ -90,9 +107,17 @@ public final class ResultSetLogger extends BaseJdbcLogger implements InvocationH
     }
   }
 
+  /**
+   * 打印结果集列名标题，并记录 BLOB 类型列的索引。
+   *
+   * @param rsmd 结果集元数据
+   * @param columnCount 列数量
+   * @throws SQLException 获取列信息可能的异常
+   */
   private void printColumnHeaders(ResultSetMetaData rsmd, int columnCount) throws SQLException {
     StringJoiner row = new StringJoiner(", ", "   Columns: ", "");
     for (int i = 1; i <= columnCount; i++) {
+      // 记录 BLOB 类型列，后续打印值时跳过
       if (BLOB_TYPES.contains(rsmd.getColumnType(i))) {
         blobColumns.add(i);
       }
@@ -101,6 +126,11 @@ public final class ResultSetLogger extends BaseJdbcLogger implements InvocationH
     trace(row.toString(), false);
   }
 
+  /**
+   * 打印当前行的列值。BLOB 类型列显示占位符，无法获取的值显示错误提示。
+   *
+   * @param columnCount 列数量
+   */
   private void printColumnValues(int columnCount) {
     StringJoiner row = new StringJoiner(", ", "       Row: ", "");
     for (int i = 1; i <= columnCount; i++) {
@@ -111,7 +141,7 @@ public final class ResultSetLogger extends BaseJdbcLogger implements InvocationH
           row.add(rs.getString(i));
         }
       } catch (SQLException e) {
-        // generally can't call getString() on a BLOB column
+        // BLOB 列无法通过 getString() 获取，显示占位符
         row.add("<<Cannot Display>>");
       }
     }

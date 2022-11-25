@@ -16,6 +16,9 @@
 package org.apache.ibatis.mapping;
 
 /**
+ * 已废弃的数据库标识提供器，现推荐使用 {@link VendorDatabaseIdProvider}。
+ * 用于根据数据库产品名称返回对应的数据库 ID，以便在 SQL 映射中根据不同数据库执行不同的语句。
+ *
  * @author Eduardo Macarron
  */
 @Deprecated

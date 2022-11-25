@@ -18,10 +18,26 @@ package org.apache.ibatis.reflection.invoker;
 import java.lang.reflect.InvocationTargetException;
 
 /**
+ * 属性访问器接口，用于通过反射调用 getter 或 setter 方法。
+ *
  * @author Clinton Begin
  */
 public interface Invoker {
+  /**
+   * 调用目标对象的属性访问方法。
+   *
+   * @param target 目标对象
+   * @param args   方法参数，getter 时为空数组，setter 时为单个值
+   * @return getter 调用返回属性值，setter 调用返回 null
+   * @throws IllegalAccessException    反射访问权限不足
+   * @throws InvocationTargetException 目标方法本身抛出异常
+   */
   Object invoke(Object target, Object[] args) throws IllegalAccessException, InvocationTargetException;
 
+  /**
+   * 获取该访问器所操作的属性类型。
+   *
+   * @return 属性的 Java 类型
+   */
   Class<?> getType();
 }

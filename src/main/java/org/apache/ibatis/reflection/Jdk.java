@@ -18,12 +18,12 @@ package org.apache.ibatis.reflection;
 import org.apache.ibatis.io.Resources;
 
 /**
- * To check the existence of version dependent classes.
+ * 用于检测 JDK 版本相关类是否存在。
  */
 public class Jdk {
 
   /**
-   * <code>true</code> if <code>java.lang.reflect.Parameter</code> is available.
+   * 判断 java.lang.reflect.Parameter 类是否可用。
    * @deprecated Since 3.5.0, Will remove this field at feature(next major version up)
    */
   @Deprecated
@@ -41,6 +41,7 @@ public class Jdk {
   }
 
   /**
+   * 判断 java.time.Clock 类是否可用（即 JDK 8+ 日期时间 API 是否存在）。
    * @deprecated Since 3.5.0, Will remove this field at feature(next major version up)
    */
   @Deprecated
@@ -58,6 +59,7 @@ public class Jdk {
   }
 
   /**
+   * 判断 java.util.Optional 类是否可用。
    * @deprecated Since 3.5.0, Will remove this field at feature(next major version up)
    */
   @Deprecated
@@ -74,6 +76,9 @@ public class Jdk {
     optionalExists = available;
   }
 
+  /**
+   * 工具类，禁止实例化。
+   */
   private Jdk() {
     super();
   }

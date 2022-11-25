@@ -20,23 +20,42 @@ import java.util.concurrent.ConcurrentMap;
 
 import org.apache.ibatis.util.MapUtil;
 
+/**
+ * Reflector 的默认实现工厂，负责创建和管理 Reflector 实例。
+ */
 public class DefaultReflectorFactory implements ReflectorFactory {
+  /** 是否启用类级别的 Reflector 缓存 */
   private boolean classCacheEnabled = true;
+  /** 缓存 Class 到 Reflector 的映射，使用并发 Map 保证线程安全 */
   private final ConcurrentMap<Class<?>, Reflector> reflectorMap = new ConcurrentHashMap<>();
 
   public DefaultReflectorFactory() {
   }
 
+  /**
+   * 判断是否启用了类级别缓存。
+   * @return 启用返回 true，否则返回 false
+   */
   @Override
   public boolean isClassCacheEnabled() {
     return classCacheEnabled;
   }
 
+  /**
+   * 设置是否启用类级别缓存。
+   * @param classCacheEnabled 设为 true 启用缓存，false 禁用缓存
+   */
   @Override
   public void setClassCacheEnabled(boolean classCacheEnabled) {
     this.classCacheEnabled = classCacheEnabled;
   }
 
+  /**
+   * 为指定类查找或创建 Reflector 实例。
+   * 当缓存启用时，从映射中获取或创建后缓存；禁用时每次创建新实例。
+   * @param type 要反射的目标类
+   * @return 对应类的 Reflector 实例
+   */
   @Override
   public Reflector findForClass(Class<?> type) {
     if (classCacheEnabled) {

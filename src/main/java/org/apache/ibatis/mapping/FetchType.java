@@ -16,8 +16,15 @@
 package org.apache.ibatis.mapping;
 
 /**
+ * 定义关联查询的加载策略。
+ *
  * @author Eduardo Macarron
  */
 public enum FetchType {
-  LAZY, EAGER, DEFAULT
+  /** 延迟加载：仅在访问关联属性时才加载 */
+  LAZY,
+  /** 立即加载：查询时立即加载所有关联数据 */
+  EAGER,
+  /** 默认：继承上层配置 */
+  DEFAULT
 }

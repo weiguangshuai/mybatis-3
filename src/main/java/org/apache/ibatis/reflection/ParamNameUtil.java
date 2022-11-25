@@ -23,19 +23,39 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * 用于获取方法或构造函数参数名称的工具类。
+ */
 public class ParamNameUtil {
+  /**
+   * 获取方法的参数名称列表。
+   * @param method 要获取参数名称的方法
+   * @return 参数名称列表
+   */
   public static List<String> getParamNames(Method method) {
     return getParameterNames(method);
   }
 
+  /**
+   * 获取构造函数的参数名称列表。
+   * @param constructor 要获取参数名称的构造函数
+   * @return 参数名称列表
+   */
   public static List<String> getParamNames(Constructor<?> constructor) {
     return getParameterNames(constructor);
   }
 
+  /**
+   * 获取可执行程序（方法或构造函数）的参数名称列表。
+   * @param executable 方法或构造函数
+   * @return 参数名称列表
+   */
   private static List<String> getParameterNames(Executable executable) {
+    // 将参数数组转为流，提取每个参数的名称，最后收集为列表
     return Arrays.stream(executable.getParameters()).map(Parameter::getName).collect(Collectors.toList());
   }
 
+  /** 工具类不允许实例化 */
   private ParamNameUtil() {
     super();
   }

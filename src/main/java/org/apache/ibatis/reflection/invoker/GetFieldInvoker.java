@@ -20,20 +20,37 @@ import java.lang.reflect.Field;
 import org.apache.ibatis.reflection.Reflector;
 
 /**
+ * 通过反射调用 getter 方法获取字段值的调用器。
+ *
  * @author Clinton Begin
  */
 public class GetFieldInvoker implements Invoker {
+  /** 要获取值的 Java 反射字段对象 */
   private final Field field;
 
+  /**
+   * 构造方法，初始化字段调用器。
+   *
+   * @param field 要操作的字段对象
+   */
   public GetFieldInvoker(Field field) {
     this.field = field;
   }
 
+  /**
+   * 调用字段的 getter 方法获取字段值。
+   *
+   * @param target 目标对象
+   * @param args 方法参数（此处未使用）
+   * @return 字段值
+   * @throws IllegalAccessException 无法访问字段时抛出
+   */
   @Override
   public Object invoke(Object target, Object[] args) throws IllegalAccessException {
     try {
       return field.get(target);
     } catch (IllegalAccessException e) {
+      // 尝试设置可访问标志后重试，适用于私有字段或 JDK 内部类
       if (Reflector.canControlMemberAccessible()) {
         field.setAccessible(true);
         return field.get(target);
@@ -43,6 +60,11 @@ public class GetFieldInvoker implements Invoker {
     }
   }
 
+  /**
+   * 获取字段的类型。
+   *
+   * @return 字段的 Class 类型
+   */
   @Override
   public Class<?> getType() {
     return field.getType();

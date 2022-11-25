@@ -23,6 +23,12 @@ import java.util.Optional;
 @Deprecated
 public abstract class OptionalUtil {
 
+  /**
+   * 将对象包装为 Optional。
+   *
+   * @param value 要包装的对象
+   * @return 包装后的 Optional，若 value 为 null 则返回空 Optional
+   */
   public static Object ofNullable(Object value) {
     return Optional.ofNullable(value);
   }

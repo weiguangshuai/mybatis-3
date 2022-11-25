@@ -18,10 +18,17 @@ package org.apache.ibatis.logging.nologging;
 import org.apache.ibatis.logging.Log;
 
 /**
+ * 无日志实现，用于完全禁用日志输出。
+ *
  * @author Clinton Begin
  */
 public class NoLoggingImpl implements Log {
 
+  /**
+   * 构造方法。
+   *
+   * @param clazz 日志所属的类名
+   */
   public NoLoggingImpl(String clazz) {
     // Do Nothing
   }

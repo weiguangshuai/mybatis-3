@@ -22,28 +22,37 @@ import org.slf4j.Marker;
 import org.slf4j.spi.LocationAwareLogger;
 
 /**
+ * SLF4J 日志实现适配器，根据 SLF4J 版本自动选择合适的日志实现。
+ *
  * @author Clinton Begin
  * @author Eduardo Macarron
  */
 public class Slf4jImpl implements Log {
 
+  /** 委托的日志实例，可能是 Slf4jLocationAwareLoggerImpl 或 Slf4jLoggerImpl */
   private Log log;
 
+  /**
+   * 构造 SLF4J 日志实现，根据 SLF4J 版本选择 LocationAware 或普通实现。
+   *
+   * @param clazz 日志所属的类名
+   */
   public Slf4jImpl(String clazz) {
     Logger logger = LoggerFactory.getLogger(clazz);
 
+    // SLF4J 1.6+ 提供 LocationAwareLogger，支持更精确的日志位置追踪
     if (logger instanceof LocationAwareLogger) {
       try {
-        // check for slf4j >= 1.6 method signature
+        // 检查是否支持 1.6+ 版本的方法签名
         logger.getClass().getMethod("log", Marker.class, String.class, int.class, String.class, Object[].class, Throwable.class);
         log = new Slf4jLocationAwareLoggerImpl((LocationAwareLogger) logger);
         return;
       } catch (SecurityException | NoSuchMethodException e) {
-        // fail-back to Slf4jLoggerImpl
+        // 版本不支持，降级使用普通实现
       }
     }
 
-    // Logger is not LocationAwareLogger or slf4j version < 1.6
+    // 非 LocationAwareLogger 或 SLF4J 版本低于 1.6，使用普通实现
     log = new Slf4jLoggerImpl(logger);
   }
 
@@ -57,6 +66,12 @@ public class Slf4jImpl implements Log {
     return log.isTraceEnabled();
   }
 
+  /**
+   * 输出错误日志，包含异常信息。
+   *
+   * @param s 日志消息
+   * @param e 异常对象
+   */
   @Override
   public void error(String s, Throwable e) {
     log.error(s, e);

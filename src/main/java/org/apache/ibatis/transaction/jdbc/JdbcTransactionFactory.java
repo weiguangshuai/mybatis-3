@@ -25,7 +25,7 @@ import org.apache.ibatis.transaction.Transaction;
 import org.apache.ibatis.transaction.TransactionFactory;
 
 /**
- * Creates {@link JdbcTransaction} instances.
+ * JdbcTransaction 工厂类，用于创建 JDBC 事务实例。
  *
  * @author Clinton Begin
  *
@@ -33,24 +33,46 @@ import org.apache.ibatis.transaction.TransactionFactory;
  */
 public class JdbcTransactionFactory implements TransactionFactory {
 
+  /** 是否跳过关闭连接时设置自动提交的操作 */
   private boolean skipSetAutoCommitOnClose;
 
+  /**
+   * 从配置属性中读取事务工厂的设置参数。
+   *
+   * @param props 配置属性集合
+   */
   @Override
   public void setProperties(Properties props) {
+    // 空属性直接返回，避免后续空指针
     if (props == null) {
       return;
     }
     String value = props.getProperty("skipSetAutoCommitOnClose");
+    // 解析 skipSetAutoCommitOnClose 配置项
     if (value != null) {
       skipSetAutoCommitOnClose = Boolean.parseBoolean(value);
     }
   }
 
+  /**
+   * 使用已存在的数据库连接创建事务实例。
+   *
+   * @param conn 已有 JDBC 连接
+   * @return JdbcTransaction 事务对象
+   */
   @Override
   public Transaction newTransaction(Connection conn) {
     return new JdbcTransaction(conn);
   }
 
+  /**
+   * 从数据源创建事务实例，支持设置事务隔离级别和自动提交模式。
+   *
+   * @param ds           数据源
+   * @param level        事务隔离级别
+   * @param autoCommit   是否自动提交
+   * @return JdbcTransaction 事务对象
+   */
   @Override
   public Transaction newTransaction(DataSource ds, TransactionIsolationLevel level, boolean autoCommit) {
     return new JdbcTransaction(ds, level, autoCommit, skipSetAutoCommitOnClose);

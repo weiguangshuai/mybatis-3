@@ -23,29 +23,56 @@ import org.apache.ibatis.reflection.ReflectionException;
 import org.apache.ibatis.reflection.property.PropertyTokenizer;
 
 /**
+ * 对象包装器的基类，提供集合类型（Map、List、数组）的属性解析与赋值通用实现。
+ *
  * @author Clinton Begin
  */
 public abstract class BaseWrapper implements ObjectWrapper {
 
+  /** 空参数数组，用于避免重复创建 */
   protected static final Object[] NO_ARGUMENTS = new Object[0];
+  /** 当前 MetaObject 上下文，用于获取属性值 */
   protected final MetaObject metaObject;
 
+  /**
+   * 构造方法，初始化 MetaObject 上下文。
+   *
+   * @param metaObject 元对象
+   */
   protected BaseWrapper(MetaObject metaObject) {
     this.metaObject = metaObject;
   }
 
+  /**
+   * 解析集合属性，返回集合对象本身或通过属性路径获取嵌套对象。
+   *
+   * @param prop   属性标记器
+   * @param object 目标对象
+   * @return 解析后的集合对象
+   */
   protected Object resolveCollection(PropertyTokenizer prop, Object object) {
+    // 空名称表示直接返回当前对象
     if ("".equals(prop.getName())) {
       return object;
     } else {
+      // 否则通过属性路径获取嵌套属性
       return metaObject.getValue(prop.getName());
     }
   }
 
+  /**
+   * 获取集合中的元素值，支持 Map、List 及各种基本类型数组。
+   *
+   * @param prop      属性标记器
+   * @param collection 集合对象
+   * @return 元素值
+   */
   protected Object getCollectionValue(PropertyTokenizer prop, Object collection) {
     if (collection instanceof Map) {
+      // Map 类型使用键获取值
       return ((Map) collection).get(prop.getIndex());
     } else {
+      // 其他集合类型使用索引访问
       int i = Integer.parseInt(prop.getIndex());
       if (collection instanceof List) {
         return ((List) collection).get(i);
@@ -73,10 +100,19 @@ public abstract class BaseWrapper implements ObjectWrapper {
     }
   }
 
+  /**
+   * 设置集合中的元素值，支持 Map、List 及各种基本类型数组。
+   *
+   * @param prop      属性标记器
+   * @param collection 集合对象
+   * @param value     要设置的值
+   */
   protected void setCollectionValue(PropertyTokenizer prop, Object collection, Object value) {
     if (collection instanceof Map) {
+      // Map 类型使用键值对设置
       ((Map) collection).put(prop.getIndex(), value);
     } else {
+      // 其他集合类型使用索引设置
       int i = Integer.parseInt(prop.getIndex());
       if (collection instanceof List) {
         ((List) collection).set(i, value);

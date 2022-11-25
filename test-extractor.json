@@ -1,0 +1,11 @@
+{
+  "request": {
+    "url": "https://www.minimaxi.com/v1/api/openplatform/coding_plan/remains",
+    "method": "GET",
+    "headers": {
+      "Authorization": "Bearer <你的token>",
+      "User-Agent": "cc-switch/1.0"
+    }
+  },
+  "extractor": "function(r){var m=r.model_remains[0];var u=m.current_interval_usage_count;var t=m.current_interval_total_count;var p=((t-u)/t*100)>>0;return{isValid:true,remaining:p,unit:'%'}}"
+}

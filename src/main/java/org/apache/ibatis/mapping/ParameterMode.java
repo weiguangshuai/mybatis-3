@@ -16,8 +16,15 @@
 package org.apache.ibatis.mapping;
 
 /**
+ * 参数模式枚举，定义存储过程调用中参数的方向类型。
+ *
  * @author Clinton Begin
  */
 public enum ParameterMode {
-  IN, OUT, INOUT
+  /** 输入参数：仅作为调用入参使用 */
+  IN,
+  /** 输出参数：仅作为返回值使用 */
+  OUT,
+  /** 输入输出参数：既作为入参又作为返回值使用 */
+  INOUT
 }

@@ -16,22 +16,56 @@
 package org.apache.ibatis.logging;
 
 /**
+ * 日志抽象接口，屏蔽不同日志框架的差异，提供统一的日志操作方法。
+ *
  * @author Clinton Begin
  */
 public interface Log {
 
+  /**
+   * 判断是否启用 DEBUG 级别日志。
+   */
   boolean isDebugEnabled();
 
+  /**
+   * 判断是否启用 TRACE 级别日志。
+   */
   boolean isTraceEnabled();
 
+  /**
+   * 记录 ERROR 级别日志及异常信息。
+   *
+   * @param s 日志消息
+   * @param e 异常对象
+   */
   void error(String s, Throwable e);
 
+  /**
+   * 记录 ERROR 级别日志。
+   *
+   * @param s 日志消息
+   */
   void error(String s);
 
+  /**
+   * 记录 DEBUG 级别日志。
+   *
+   * @param s 日志消息
+   */
   void debug(String s);
 
+  /**
+   * 记录 TRACE 级别日志。
+   *
+   * @param s 日志消息
+   */
   void trace(String s);
 
+  /**
+   * 记录 WARN 级别日志。
+   *
+   * @param s 日志消息
+   */
   void warn(String s);
 
 }

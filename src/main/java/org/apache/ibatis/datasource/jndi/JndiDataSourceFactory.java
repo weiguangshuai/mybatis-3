@@ -27,20 +27,32 @@ import org.apache.ibatis.datasource.DataSourceException;
 import org.apache.ibatis.datasource.DataSourceFactory;
 
 /**
+ * 通过 JNDI 方式获取 DataSource 的工厂实现。
+ *
  * @author Clinton Begin
  */
 public class JndiDataSourceFactory implements DataSourceFactory {
 
+  /** JNDI 初始上下文的环境属性键 */
   public static final String INITIAL_CONTEXT = "initial_context";
+  /** JNDI 数据源的资源引用名键 */
   public static final String DATA_SOURCE = "data_source";
+  /** 环境属性的前缀，用于从配置中提取 JNDI 环境变量 */
   public static final String ENV_PREFIX = "env.";
 
+  /** 缓存获取到的 JNDI DataSource 实例 */
   private DataSource dataSource;
 
+  /**
+   * 根据配置属性初始化 JNDI DataSource。
+   *
+   * @param properties 包含 JNDI 配置的属性集
+   */
   @Override
   public void setProperties(Properties properties) {
     try {
       InitialContext initCtx;
+      // 提取以 env. 前缀开头的属性作为 JNDI 环境变量
       Properties env = getEnvProperties(properties);
       if (env == null) {
         initCtx = new InitialContext();
@@ -48,10 +60,13 @@ public class JndiDataSourceFactory implements DataSourceFactory {
         initCtx = new InitialContext(env);
       }
 
+      // 支持两种查找方式：带初始上下文或不带
       if (properties.containsKey(INITIAL_CONTEXT) && properties.containsKey(DATA_SOURCE)) {
+        // 先查找初始上下文，再从中获取 DataSource
         Context ctx = (Context) initCtx.lookup(properties.getProperty(INITIAL_CONTEXT));
         dataSource = (DataSource) ctx.lookup(properties.getProperty(DATA_SOURCE));
       } else if (properties.containsKey(DATA_SOURCE)) {
+        // 直接从初始上下文查找 DataSource
         dataSource = (DataSource) initCtx.lookup(properties.getProperty(DATA_SOURCE));
       }
 
@@ -60,21 +75,34 @@ public class JndiDataSourceFactory implements DataSourceFactory {
     }
   }
 
+  /**
+   * 获取已配置的 JNDI DataSource 实例。
+   *
+   * @return JNDI DataSource
+   */
   @Override
   public DataSource getDataSource() {
     return dataSource;
   }
 
+  /**
+   * 从全部属性中提取以 env. 前缀开头的属性，作为 JNDI 上下文环境变量。
+   *
+   * @param allProps 全部配置属性
+   * @return 提取出的环境变量属性集，若无则返回 null
+   */
   private static Properties getEnvProperties(Properties allProps) {
     final String PREFIX = ENV_PREFIX;
     Properties contextProperties = null;
     for (Entry<Object, Object> entry : allProps.entrySet()) {
       String key = (String) entry.getKey();
       String value = (String) entry.getValue();
+      // 过滤出以 env. 前缀开头的属性
       if (key.startsWith(PREFIX)) {
         if (contextProperties == null) {
           contextProperties = new Properties();
         }
+        // 去掉前缀后存入环境变量
         contextProperties.put(key.substring(PREFIX.length()), value);
       }
     }
