@@ -137,7 +137,9 @@ public class Configuration {
   protected Class<?> configurationFactory;
 
   protected final InterceptorChain interceptorChain = new InterceptorChain();
+  //类和对应处理器的映射
   protected final TypeHandlerRegistry typeHandlerRegistry = new TypeHandlerRegistry();
+  //别名和对应类的映射
   protected final TypeAliasRegistry typeAliasRegistry = new TypeAliasRegistry();
   protected final LanguageDriverRegistry languageRegistry = new LanguageDriverRegistry();
 

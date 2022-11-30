@@ -49,6 +49,10 @@ import static org.junit.Assert.*;
 
 public class XmlConfigBuilderTest {
 
+  /**
+   * 配置加载和解析
+   * @throws Exception 异常
+   */
   @Test
   public void shouldSuccessfullyLoadMinimalXMLConfigFile() throws Exception {
     String resource = "org/apache/ibatis/builder/MinimalMapperConfig.xml";
