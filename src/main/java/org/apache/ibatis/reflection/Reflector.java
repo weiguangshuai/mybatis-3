@@ -39,19 +39,28 @@ import org.apache.ibatis.reflection.property.PropertyNamer;
  * allows for easy mapping between property names and getter/setter methods.
  */
 /**
+ * 先将Class对象封装成一个Reflector对象，在Reflector中缓存Class的元数据信息，提高反射的效率
  * @author Clinton Begin
  */
 public class Reflector {
 
   private static final String[] EMPTY_STRING_ARRAY = new String[0];
 
+  // Reflector对象封装的Class类型
   private Class<?> type;
+  // 可读属性名称集合
   private String[] readablePropertyNames = EMPTY_STRING_ARRAY;
+  // 可写属性名称集合
   private String[] writeablePropertyNames = EMPTY_STRING_ARRAY;
+  //可读可写属性对应的getter和setter方法集合，key是属性名称，value是Invoker对象，封装了Method对象
   private Map<String, Invoker> setMethods = new HashMap<String, Invoker>();
   private Map<String, Invoker> getMethods = new HashMap<String, Invoker>();
+
+  // 属性对应的getter方法返回值以及setter方法参数值类型，key是属性名称，value是返回值或参数值类型
   private Map<String, Class<?>> setTypes = new HashMap<String, Class<?>>();
   private Map<String, Class<?>> getTypes = new HashMap<String, Class<?>>();
+
+
   private Constructor<?> defaultConstructor;
 
   private Map<String, String> caseInsensitivePropertyMap = new HashMap<String, String>();
