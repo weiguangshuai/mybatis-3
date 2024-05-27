@@ -63,14 +63,21 @@ public class Reflector {
 
   private Constructor<?> defaultConstructor;
 
+  // 将readablePropertyNames和writeablePropertyNames属性全部转为大写后作为key存入该map中
   private Map<String, String> caseInsensitivePropertyMap = new HashMap<String, String>();
 
   public Reflector(Class<?> clazz) {
+    // 记录传入的class对象
     type = clazz;
+    // 拿到所有的构造函数，过滤无参构造方法来初始化defaultConstructor字段
     addDefaultConstructor(clazz);
+    // 读取class的getter方法，填充getMethods和getTypes
     addGetMethods(clazz);
+    // 读取class的setter方法，填充setMethods和setTypes
     addSetMethods(clazz);
+    // 读取class中没有getter和setter方法的字段，生成对应的Invoker对象，填充到getMethods、getTypes和setMethods、setTypes集合中
     addFields(clazz);
+
     readablePropertyNames = getMethods.keySet().toArray(new String[getMethods.keySet().size()]);
     writeablePropertyNames = setMethods.keySet().toArray(new String[setMethods.keySet().size()]);
     for (String propName : readablePropertyNames) {
