@@ -36,10 +36,12 @@ import org.apache.ibatis.io.Resources;
  */
 public final class TypeHandlerRegistry {
 
+  // 记录JdbcType和TypeHandler之间的关联关系
   private final Map<JdbcType, TypeHandler<?>> JDBC_TYPE_HANDLER_MAP = new EnumMap<JdbcType, TypeHandler<?>>(JdbcType.class);
-  //存放不同类型数据对应的jdbc和处理类<String.class,<JdbcType.VARCHAR,StringTypeHandler>>
+  //存放不同java类型对应的jdbc和处理类，例如：<String.class,<JdbcType.VARCHAR,StringTypeHandler>>
   private final Map<Type, Map<JdbcType, TypeHandler<?>>> TYPE_HANDLER_MAP = new HashMap<Type, Map<JdbcType, TypeHandler<?>>>();
   private final TypeHandler<Object> UNKNOWN_TYPE_HANDLER = new UnknownTypeHandler(this);
+  // 记录所有的TypeHandler类型，以及对应的TypeHandler实例对象
   private final Map<Class<?>, TypeHandler<?>> ALL_TYPE_HANDLERS_MAP = new HashMap<Class<?>, TypeHandler<?>>();
 
   public TypeHandlerRegistry() {
