@@ -25,23 +25,42 @@ import org.apache.ibatis.transaction.Transaction;
 import org.apache.ibatis.transaction.TransactionFactory;
 
 /**
- * Creates {@link JdbcTransaction} instances.
+ * JdbcTransaction 工厂类，用于创建 JDBC 事务实例。
  *
  * @author Clinton Begin
- *
  * @see JdbcTransaction
  */
 public class JdbcTransactionFactory implements TransactionFactory {
 
+  /**
+   * 设置配置属性，当前实现为空。
+   * 预留用于未来扩展，支持从配置中读取事务相关参数。
+   *
+   * @param props 配置属性
+   */
   @Override
   public void setProperties(Properties props) {
   }
 
+  /**
+   * 使用已有的数据库连接创建事务。
+   *
+   * @param conn 数据库连接，事务将基于此连接创建
+   * @return JdbcTransaction 实例
+   */
   @Override
   public Transaction newTransaction(Connection conn) {
     return new JdbcTransaction(conn);
   }
 
+  /**
+   * 从数据源创建事务，支持设置隔离级别和自动提交模式。
+   *
+   * @param ds         数据源，用于获取数据库连接
+   * @param level      事务隔离级别
+   * @param autoCommit 是否自动提交
+   * @return JdbcTransaction 实例
+   */
   @Override
   public Transaction newTransaction(DataSource ds, TransactionIsolationLevel level, boolean autoCommit) {
     return new JdbcTransaction(ds, level, autoCommit);

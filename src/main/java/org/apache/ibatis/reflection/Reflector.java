@@ -156,6 +156,12 @@ public class Reflector {
     }
   }
 
+  /**
+   * 添加 getter 方法到缓存。
+   *
+   * @param name 属性名
+   * @param method getter 方法
+   */
   private void addGetMethod(String name, Method method) {
     if (isValidPropertyName(name)) {
       getMethods.put(name, new MethodInvoker(method));
@@ -180,6 +186,13 @@ public class Reflector {
     resolveSetterConflicts(conflictingSetters);
   }
 
+  /**
+   * 将方法添加到冲突集合中，用于后续冲突决议。
+   *
+   * @param conflictingMethods 冲突方法集合
+   * @param name 属性名
+   * @param method 方法
+   */
   private void addMethodConflict(Map<String, List<Method>> conflictingMethods, String name, Method method) {
     List<Method> list = conflictingMethods.get(name);
     if (list == null) {
@@ -220,6 +233,14 @@ public class Reflector {
     }
   }
 
+  /**
+   * 在两个 setter 方法中选择更合适的。
+   *
+   * @param setter1 候选 setter
+   * @param setter2 候选 setter
+   * @param property 属性名
+   * @return 更好的 setter
+   */
   private Method pickBetterSetter(Method setter1, Method setter2, String property) {
     if (setter1 == null) {
       return setter2;
@@ -236,6 +257,12 @@ public class Reflector {
         + paramType2.getName() + "'.");
   }
 
+  /**
+   * 添加 setter 方法到缓存。
+   *
+   * @param name 属性名
+   * @param method setter 方法
+   */
   private void addSetMethod(String name, Method method) {
     if (isValidPropertyName(name)) {
       setMethods.put(name, new MethodInvoker(method));
@@ -244,6 +271,12 @@ public class Reflector {
     }
   }
 
+  /**
+   * 将泛型 Type 转换为具体 Class。
+   *
+   * @param src 泛型类型
+   * @return 具体 Class
+   */
   private Class<?> typeToClass(Type src) {
     // 将 Type 统一归一为 Class，便于后续缓存和快速查询。
     Class<?> result = null;
@@ -295,6 +328,11 @@ public class Reflector {
     }
   }
 
+  /**
+   * 将字段添加为 setter。
+   *
+   * @param field 字段
+   */
   private void addSetField(Field field) {
     if (isValidPropertyName(field.getName())) {
       setMethods.put(field.getName(), new SetFieldInvoker(field));
@@ -303,6 +341,11 @@ public class Reflector {
     }
   }
 
+  /**
+   * 将字段添加为 getter。
+   *
+   * @param field 字段
+   */
   private void addGetField(Field field) {
     if (isValidPropertyName(field.getName())) {
       getMethods.put(field.getName(), new GetFieldInvoker(field));
@@ -311,6 +354,12 @@ public class Reflector {
     }
   }
 
+  /**
+   * 检查属性名是否合法。
+   *
+   * @param name 属性名
+   * @return 合法返回 true
+   */
   private boolean isValidPropertyName(String name) {
     return !(name.startsWith("$") || "serialVersionUID".equals(name) || "class".equals(name));
   }
@@ -342,6 +391,12 @@ public class Reflector {
     return methods.toArray(new Method[methods.size()]);
   }
 
+  /**
+   * 将方法添加到去重集合中，子类方法会覆盖父类方法。
+   *
+   * @param uniqueMethods 去重方法集合
+   * @param methods 待添加的方法数组
+   */
   private void addUniqueMethods(Map<String, Method> uniqueMethods, Method[] methods) {
     for (Method currentMethod : methods) {
       if (!currentMethod.isBridge()) {
@@ -362,6 +417,12 @@ public class Reflector {
     }
   }
 
+  /**
+   * 生成方法的唯一签名，用于去重和冲突检测。
+   *
+   * @param method 方法
+   * @return 签名字符串（格式：返回类型#方法名:参数类型列表）
+   */
   private String getSignature(Method method) {
     // 以“返回类型#方法名:参数类型列表”构建签名，区分重载并去重。
     StringBuilder sb = new StringBuilder();
@@ -382,6 +443,11 @@ public class Reflector {
     return sb.toString();
   }
 
+  /**
+   * 检测当前环境是否可以访问私有方法。
+   *
+   * @return 可以访问返回 true
+   */
   private static boolean canAccessPrivateMethods() {
     // 在存在安全管理器时，先检测 suppressAccessChecks 权限。
     try {
@@ -404,6 +470,11 @@ public class Reflector {
     return type;
   }
 
+  /**
+   * 获取默认无参构造器。
+   *
+   * @return 默认构造器
+   */
   public Constructor<?> getDefaultConstructor() {
     if (defaultConstructor != null) {
       return defaultConstructor;
@@ -412,10 +483,21 @@ public class Reflector {
     }
   }
 
+  /**
+   * 判断是否存在默认无参构造器。
+   *
+   * @return 存在返回 true
+   */
   public boolean hasDefaultConstructor() {
     return defaultConstructor != null;
   }
 
+  /**
+   * 获取属性 setter 的调用器。
+   *
+   * @param propertyName 属性名
+   * @return setter 调用器
+   */
   public Invoker getSetInvoker(String propertyName) {
     Invoker method = setMethods.get(propertyName);
     if (method == null) {
@@ -424,6 +506,12 @@ public class Reflector {
     return method;
   }
 
+  /**
+   * 获取属性 getter 的调用器。
+   *
+   * @param propertyName 属性名
+   * @return getter 调用器
+   */
   public Invoker getGetInvoker(String propertyName) {
     Invoker method = getMethods.get(propertyName);
     if (method == null) {
@@ -498,6 +586,12 @@ public class Reflector {
     return getMethods.keySet().contains(propertyName);
   }
 
+  /**
+   * 根据名称查找属性名（不区分大小写）。
+   *
+   * @param name 属性名（任意大小写）
+   * @return 实际属性名，未找到返回 null
+   */
   public String findPropertyName(String name) {
     // 按不区分大小写规则查找原始属性名。
     return caseInsensitivePropertyMap.get(name.toUpperCase(Locale.ENGLISH));

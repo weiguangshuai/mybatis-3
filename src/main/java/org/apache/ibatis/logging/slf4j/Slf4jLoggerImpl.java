@@ -19,12 +19,20 @@ import org.apache.ibatis.logging.Log;
 import org.slf4j.Logger;
 
 /**
+ * SLF4J 日志框架适配器，将 MyBatis 的 Log 接口委托给 SLF4J 的 Logger。
+ *
  * @author Eduardo Macarron
  */
 class Slf4jLoggerImpl implements Log {
 
+  /** 底层 SLF4J Logger 实例 */
   private final Logger log;
 
+  /**
+   * 构造方法，接收 SLF4J Logger 实例。
+   *
+   * @param logger SLF4J Logger 对象
+   */
   public Slf4jLoggerImpl(Logger logger) {
     log = logger;
   }

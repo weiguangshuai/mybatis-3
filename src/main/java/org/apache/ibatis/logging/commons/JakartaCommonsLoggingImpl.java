@@ -19,12 +19,20 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 /**
+ * Apache Commons Logging 日志实现。
+ *
  * @author Clinton Begin
  */
 public class JakartaCommonsLoggingImpl implements org.apache.ibatis.logging.Log {
 
+  /** 底层 Commons Log 实例 */
   private final Log log;
 
+  /**
+   * 构造方法。
+   *
+   * @param clazz 日志所属的类
+   */
   public JakartaCommonsLoggingImpl(String clazz) {
     log = LogFactory.getLog(clazz);
   }
@@ -39,26 +47,52 @@ public class JakartaCommonsLoggingImpl implements org.apache.ibatis.logging.Log 
     return log.isTraceEnabled();
   }
 
+  /**
+   * 记录错误日志。
+   *
+   * @param s 日志消息
+   * @param e 异常信息
+   */
   @Override
   public void error(String s, Throwable e) {
     log.error(s, e);
   }
 
+  /**
+   * 记录错误日志。
+   *
+   * @param s 日志消息
+   */
   @Override
   public void error(String s) {
     log.error(s);
   }
 
+  /**
+   * 记录调试日志。
+   *
+   * @param s 日志消息
+   */
   @Override
   public void debug(String s) {
     log.debug(s);
   }
 
+  /**
+   * 记录跟踪日志。
+   *
+   * @param s 日志消息
+   */
   @Override
   public void trace(String s) {
     log.trace(s);
   }
 
+  /**
+   * 记录警告日志。
+   *
+   * @param s 日志消息
+   */
   @Override
   public void warn(String s) {
     log.warn(s);

@@ -30,26 +30,36 @@ import org.apache.ibatis.logging.Log;
 import org.apache.ibatis.reflection.ArrayUtil;
 
 /**
- * Base class for proxies to do logging
- * 
+ * JDBC 日志代理基类，为 JDBC 操作提供日志记录能力
+ *
  * @author Clinton Begin
  * @author Eduardo Macarron
  */
 public abstract class BaseJdbcLogger {
 
+  /** 用于设置参数值的 JDBC 方法集合 */
   protected static final Set<String> SET_METHODS = new HashSet<String>();
+  /** 用于执行 SQL 的 JDBC 方法集合 */
   protected static final Set<String> EXECUTE_METHODS = new HashSet<String>();
 
+  /** 列名到列值的映射，用于记录参数绑定信息 */
   private final Map<Object, Object> columnMap = new HashMap<Object, Object>();
 
+  /** 参数绑定的列名列表 */
   private final List<Object> columnNames = new ArrayList<Object>();
+  /** 参数绑定的列值列表 */
   private final List<Object> columnValues = new ArrayList<Object>();
 
+  /** 日志记录器，用于输出 SQL 语句和参数 */
   protected Log statementLog;
+  /** 查询嵌套深度，用于格式化日志输出前缀 */
   protected int queryStack;
 
-  /*
-   * Default constructor
+  /**
+   * 构造函数，初始化日志记录器
+   *
+   * @param log        日志记录器
+   * @param queryStack 查询嵌套深度，0 时默认为 1
    */
   public BaseJdbcLogger(Log log, int queryStack) {
     this.statementLog = log;
@@ -92,16 +102,33 @@ public abstract class BaseJdbcLogger {
     EXECUTE_METHODS.add("addBatch");
   }
 
+  /**
+   * 记录参数绑定信息
+   *
+   * @param key   参数名称
+   * @param value 参数值
+   */
   protected void setColumn(Object key, Object value) {
     columnMap.put(key, value);
     columnNames.add(key);
     columnValues.add(value);
   }
 
+  /**
+   * 根据参数名获取对应的值
+   *
+   * @param key 参数名称
+   * @return 参数值，不存在时返回 null
+   */
   protected Object getColumn(Object key) {
     return columnMap.get(key);
   }
 
+  /**
+   * 生成参数字符串表示，格式如: value1(type1), value2(type2)
+   *
+   * @return 参数字符串
+   */
   protected String getParameterValueString() {
     List<Object> typeList = new ArrayList<Object>(columnValues.size());
     for (Object value : columnValues) {
@@ -112,30 +139,52 @@ public abstract class BaseJdbcLogger {
       }
     }
     final String parameters = typeList.toString();
+    // 去掉首尾方括号
     return parameters.substring(1, parameters.length() - 1);
   }
 
+  /**
+   * 将对象转换为字符串表示，特殊处理 Array 类型
+   *
+   * @param value 待转换的对象
+   * @return 对象的字符串表示
+   */
   protected String objectValueString(Object value) {
     if (value instanceof Array) {
       try {
         return ArrayUtil.toString(((Array) value).getArray());
       } catch (SQLException e) {
+        // 转换失败时使用 toString
         return value.toString();
       }
     }
     return value.toString();
   }
 
+  /**
+   * 获取所有列名组成的字符串
+   *
+   * @return 列名字符串
+   */
   protected String getColumnString() {
     return columnNames.toString();
   }
 
+  /**
+   * 清除所有记录的列信息，用于每次执行前重置状态
+   */
   protected void clearColumnInfo() {
     columnMap.clear();
     columnNames.clear();
     columnValues.clear();
   }
 
+  /**
+   * 移除字符串中的换行符，将连续空白符替换为单个空格
+   *
+   * @param original 原始字符串
+   * @return 处理后的字符串
+   */
   protected String removeBreakingWhitespace(String original) {
     StringTokenizer whitespaceStripper = new StringTokenizer(original);
     StringBuilder builder = new StringBuilder();
@@ -146,26 +195,54 @@ public abstract class BaseJdbcLogger {
     return builder.toString();
   }
 
+  /**
+   * 判断调试日志是否启用
+   *
+   * @return 是否启用调试日志
+   */
   protected boolean isDebugEnabled() {
     return statementLog.isDebugEnabled();
   }
 
+  /**
+   * 判断跟踪日志是否启用
+   *
+   * @return 是否启用跟踪日志
+   */
   protected boolean isTraceEnabled() {
     return statementLog.isTraceEnabled();
   }
 
+  /**
+   * 输出调试日志
+   *
+   * @param text  日志内容
+   * @param input true 表示输入参数，false 表示输出结果
+   */
   protected void debug(String text, boolean input) {
     if (statementLog.isDebugEnabled()) {
       statementLog.debug(prefix(input) + text);
     }
   }
 
+  /**
+   * 输出跟踪日志
+   *
+   * @param text  日志内容
+   * @param input true 表示输入参数，false 表示输出结果
+   */
   protected void trace(String text, boolean input) {
     if (statementLog.isTraceEnabled()) {
       statementLog.trace(prefix(input) + text);
     }
   }
 
+  /**
+   * 生成日志前缀，用于区分输入输出
+   *
+   * @param isInput true 表示输入，false 表示输出
+   * @return 格式化的前缀字符串
+   */
   private String prefix(boolean isInput) {
     char[] buffer = new char[queryStack * 2 + 2];
     Arrays.fill(buffer, '=');

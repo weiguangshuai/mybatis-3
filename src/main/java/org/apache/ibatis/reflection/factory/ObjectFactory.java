@@ -19,40 +19,41 @@ import java.util.List;
 import java.util.Properties;
 
 /**
- * MyBatis uses an ObjectFactory to create all needed new Objects.
- * 
+ * ObjectFactory 接口.
+ * 定义对象创建工厂规范，MyBatis 使用它来创建所需的各种对象实例.
+ *
  * @author Clinton Begin
  */
 public interface ObjectFactory {
 
   /**
-   * Sets configuration properties.
-   * @param properties configuration properties
+   * 设置配置属性.
+   * @param properties 配置属性集合
    */
   void setProperties(Properties properties);
 
   /**
-   * Creates a new object with default constructor. 
-   * @param type Object type
-   * @return
+   * 使用无参构造函数创建对象实例.
+   * @param type 要创建的对象类型
+   * @return 创建的对象实例
    */
   <T> T create(Class<T> type);
 
   /**
-   * Creates a new object with the specified constructor and params.
-   * @param type Object type
-   * @param constructorArgTypes Constructor argument types
-   * @param constructorArgs Constructor argument values
-   * @return
+   * 使用指定构造函数和参数创建对象实例.
+   * @param type 对象类型
+   * @param constructorArgTypes 构造函数参数类型列表
+   * @param constructorArgs 构造函数参数值列表
+   * @return 创建的对象实例
    */
   <T> T create(Class<T> type, List<Class<?>> constructorArgTypes, List<Object> constructorArgs);
-  
+
   /**
-   * Returns true if this object can have a set of other objects.
-   * It's main purpose is to support non-java.util.Collection objects like Scala collections.
-   * 
-   * @param type Object type
-   * @return whether it is a collection or not
+   * 判断指定类型是否为集合类型.
+   * 主要用于支持 Scala 集合等非 java.util.Collection 接口的集合类型.
+   *
+   * @param type 要检查的对象类型
+   * @return 如果是集合类型返回 true，否则返回 false
    * @since 3.1.0
    */
   <T> boolean isCollection(Class<T> type);

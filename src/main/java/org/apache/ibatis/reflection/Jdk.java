@@ -31,27 +31,35 @@ public class Jdk {
   static {
     boolean available = false;
     try {
+      // 检测 JDK 8+ 的 java.lang.reflect.Parameter 类是否可用
       Resources.classForName("java.lang.reflect.Parameter");
       available = true;
     } catch (ClassNotFoundException e) {
-      // ignore
+      // JDK 7 及以下版本不支持该类
     }
     parameterExists = available;
   }
 
+  /**
+   * <code>true</code> if <code>java.time</code> API is available (JDK 8+).
+   */
   public static final boolean dateAndTimeApiExists;
 
   static {
     boolean available = false;
     try {
+      // 检测 JDK 8+ 的 java.time API 是否可用
       Resources.classForName("java.time.Clock");
       available = true;
     } catch (ClassNotFoundException e) {
-      // ignore
+      // JDK 7 及以下版本不支持该 API
     }
     dateAndTimeApiExists = available;
   }
 
+  /**
+   * 工具类，禁止实例化。
+   */
   private Jdk() {
     super();
   }

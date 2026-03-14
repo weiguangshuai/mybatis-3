@@ -23,31 +23,64 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.ibatis.session.SqlSession;
 
 /**
+ * Mapper 接口的代理工厂类，负责创建 Mapper 接口的动态代理实例
+ *
  * @author Lasse Voss
  */
 public class MapperProxyFactory<T> {
 
+  /** Mapper 接口类型 */
   private final Class<T> mapperInterface;
+  /** 方法缓存，存储 Method 与 MapperMethod 的映射关系 */
   private final Map<Method, MapperMethod> methodCache = new ConcurrentHashMap<Method, MapperMethod>();
 
+  /**
+   * 构造 MapperProxyFactory
+   *
+   * @param mapperInterface Mapper 接口类型
+   */
   public MapperProxyFactory(Class<T> mapperInterface) {
     this.mapperInterface = mapperInterface;
   }
 
+  /**
+   * 获取 Mapper 接口类型
+   *
+   * @return Mapper 接口的 Class 对象
+   */
   public Class<T> getMapperInterface() {
     return mapperInterface;
   }
 
+  /**
+   * 获取方法缓存
+   *
+   * @return Method 与 MapperMethod 的映射缓存
+   */
   public Map<Method, MapperMethod> getMethodCache() {
     return methodCache;
   }
 
+  /**
+   * 使用指定的 MapperProxy 创建代理实例
+   *
+   * @param mapperProxy Mapper 代理对象
+   * @return Mapper 接口的动态代理实例
+   */
   @SuppressWarnings("unchecked")
   protected T newInstance(MapperProxy<T> mapperProxy) {
+    // 使用 JDK 动态代理创建 Mapper 接口的代理对象
     return (T) Proxy.newProxyInstance(mapperInterface.getClassLoader(), new Class[] { mapperInterface }, mapperProxy);
   }
 
+  /**
+   * 创建 Mapper 接口的代理实例
+   *
+   * @param sqlSession SqlSession 会话
+   * @return Mapper 接口的代理实例
+   */
   public T newInstance(SqlSession sqlSession) {
+    // 创建 MapperProxy，传入 SqlSession、接口类型和方法缓存
     final MapperProxy<T> mapperProxy = new MapperProxy<T>(sqlSession, mapperInterface, methodCache);
     return newInstance(mapperProxy);
   }

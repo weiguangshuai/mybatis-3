@@ -19,19 +19,25 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 /**
+ * 方法调用器，通过 Java 反射机制执行目标对象的方法。
+ *
  * @author Clinton Begin
  */
 public class MethodInvoker implements Invoker {
 
+  /** 方法的参数类型或返回值类型，用于类型转换 */
   private final Class<?> type;
+  /** 要执行的反射方法对象 */
   private final Method method;
 
   public MethodInvoker(Method method) {
     this.method = method;
 
     if (method.getParameterTypes().length == 1) {
+      // 单参数方法：类型为参数类型
       type = method.getParameterTypes()[0];
     } else {
+      // 无参数方法：类型为返回值类型
       type = method.getReturnType();
     }
   }

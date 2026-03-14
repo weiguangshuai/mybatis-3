@@ -18,10 +18,15 @@ package org.apache.ibatis.datasource.pooled;
 import org.apache.ibatis.datasource.unpooled.UnpooledDataSourceFactory;
 
 /**
+ * PooledDataSource 工厂类，负责创建带连接池的数据源实例。
+ *
  * @author Clinton Begin
  */
 public class PooledDataSourceFactory extends UnpooledDataSourceFactory {
 
+  /**
+   * 构造一个池化数据源工厂，内部创建 PooledDataSource 实例。
+   */
   public PooledDataSourceFactory() {
     this.dataSource = new PooledDataSource();
   }

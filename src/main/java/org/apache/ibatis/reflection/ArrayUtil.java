@@ -20,6 +20,8 @@ import java.util.Arrays;
 
 /**
  * Provides hashCode, equals and toString methods that can handle array.
+ *
+ * 数组处理工具类，提供能够正确处理数组类型的 hashCode、equals 和 toString 方法。
  */
 public class ArrayUtil {
 
@@ -32,13 +34,15 @@ public class ArrayUtil {
    */
   public static int hashCode(Object obj) {
     if (obj == null) {
-      // for consistency with Arrays#hashCode() and Objects#hashCode()
+      // 与 Arrays#hashCode() 和 Objects#hashCode() 保持一致
       return 0;
     }
     final Class<?> clazz = obj.getClass();
+    // 非数组类型直接调用对象的 hashCode
     if (!clazz.isArray()) {
       return obj.hashCode();
     }
+    // 根据数组组件类型调用对应的 Arrays.hashCode 方法
     final Class<?> componentType = clazz.getComponentType();
     if (long.class.equals(componentType)) {
       return Arrays.hashCode((long[]) obj);
@@ -78,18 +82,22 @@ public class ArrayUtil {
    * @return <code>true</code> if two objects are equal; <code>false</code> otherwise.
    */
   public static boolean equals(Object thisObj, Object thatObj) {
+    // 两者都为 null 时视为相等
     if (thisObj == null) {
       return thatObj == null;
     } else if (thatObj == null) {
       return false;
     }
     final Class<?> clazz = thisObj.getClass();
+    // 类型不同直接返回 false
     if (!clazz.equals(thatObj.getClass())) {
       return false;
     }
+    // 非数组类型直接调用 equals 方法
     if (!clazz.isArray()) {
       return thisObj.equals(thatObj);
     }
+    // 根据数组组件类型调用对应的 Arrays.equals 方法
     final Class<?> componentType = clazz.getComponentType();
     if (long.class.equals(componentType)) {
       return Arrays.equals((long[]) thisObj, (long[]) thatObj);
@@ -125,9 +133,11 @@ public class ArrayUtil {
       return "null";
     }
     final Class<?> clazz = obj.getClass();
+    // 非数组类型直接调用 toString 方法
     if (!clazz.isArray()) {
       return obj.toString();
     }
+    // 根据数组组件类型调用对应的 Arrays.toString 方法
     final Class<?> componentType = obj.getClass().getComponentType();
     if (long.class.equals(componentType)) {
       return Arrays.toString((long[]) obj);

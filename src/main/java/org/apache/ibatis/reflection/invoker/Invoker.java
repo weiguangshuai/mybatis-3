@@ -18,10 +18,26 @@ package org.apache.ibatis.reflection.invoker;
 import java.lang.reflect.InvocationTargetException;
 
 /**
+ * 调用器接口，用于反射调用方法或访问字段
+ *
  * @author Clinton Begin
  */
 public interface Invoker {
+  /**
+   * 执行调用
+   *
+   * @param target 目标对象
+   * @param args   调用参数
+   * @return 调用结果
+   * @throws IllegalAccessException    如果无法访问方法或字段
+   * @throws InvocationTargetException 如果调用本身抛出异常
+   */
   Object invoke(Object target, Object[] args) throws IllegalAccessException, InvocationTargetException;
 
+  /**
+   * 获取返回值的类型
+   *
+   * @return 方法或字段的类型
+   */
   Class<?> getType();
 }

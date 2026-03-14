@@ -19,20 +19,38 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 
 /**
+ * 用于通过反射获取字段值的 Invoker 实现类。
+ *
  * @author Clinton Begin
  */
 public class GetFieldInvoker implements Invoker {
+  /** 要操作的字段对象 */
   private final Field field;
 
+  /**
+   * 构造方法，指定要操作的字段。
+   * @param field 要获取值的字段
+   */
   public GetFieldInvoker(Field field) {
     this.field = field;
   }
 
+  /**
+   * 获取目标对象的字段值。
+   * @param target 目标对象
+   * @param args 方法参数（此处未使用）
+   * @return 字段的当前值
+   */
   @Override
   public Object invoke(Object target, Object[] args) throws IllegalAccessException, InvocationTargetException {
+    // 通过反射获取指定对象的字段值
     return field.get(target);
   }
 
+  /**
+   * 获取字段的类型。
+   * @return 字段的 Java 类型
+   */
   @Override
   public Class<?> getType() {
     return field.getType();

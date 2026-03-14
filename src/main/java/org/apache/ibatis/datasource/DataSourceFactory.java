@@ -19,12 +19,24 @@ import java.util.Properties;
 import javax.sql.DataSource;
 
 /**
+ * 数据源工厂接口，负责创建和配置 JDBC 数据源实例
+ *
  * @author Clinton Begin
  */
 public interface DataSourceFactory {
 
+  /**
+   * 设置数据源配置属性
+   *
+   * @param props 包含数据源配置键值对的属性对象
+   */
   void setProperties(Properties props);
 
+  /**
+   * 获取已配置的数据源实例
+   *
+   * @return JDBC 数据源对象，用于数据库连接
+   */
   DataSource getDataSource();
 
 }

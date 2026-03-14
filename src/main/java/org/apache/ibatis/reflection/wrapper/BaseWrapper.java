@@ -23,17 +23,34 @@ import org.apache.ibatis.reflection.ReflectionException;
 import org.apache.ibatis.reflection.property.PropertyTokenizer;
 
 /**
+ * 对象包装器的抽象基类，提供集合类型（List、Map、数组）的属性存取能力。
+ *
  * @author Clinton Begin
  */
 public abstract class BaseWrapper implements ObjectWrapper {
 
+  /** 空参数数组，用于无需传参的方法调用 */
   protected static final Object[] NO_ARGUMENTS = new Object[0];
+  /** 关联的 MetaObject，用于反射操作 */
   protected final MetaObject metaObject;
 
+  /**
+   * 构造方法，初始化 MetaObject。
+   *
+   * @param metaObject 元对象
+   */
   protected BaseWrapper(MetaObject metaObject) {
     this.metaObject = metaObject;
   }
 
+  /**
+   * 根据属性标记器解析集合对象。
+   * 若属性名为空则直接返回原对象，否则从 MetaObject 获取值。
+   *
+   * @param prop  属性标记器
+   * @param object 目标对象
+   * @return 解析后的集合对象
+   */
   protected Object resolveCollection(PropertyTokenizer prop, Object object) {
     if ("".equals(prop.getName())) {
       return object;
@@ -42,6 +59,14 @@ public abstract class BaseWrapper implements ObjectWrapper {
     }
   }
 
+  /**
+   * 从集合中获取指定索引位置的值。
+   * 支持 Map、List 及各种基本类型数组。
+   *
+   * @param prop      属性标记器，包含索引信息
+   * @param collection 集合对象
+   * @return 索引位置的值
+   */
   protected Object getCollectionValue(PropertyTokenizer prop, Object collection) {
     if (collection instanceof Map) {
       return ((Map) collection).get(prop.getIndex());
@@ -68,11 +93,20 @@ public abstract class BaseWrapper implements ObjectWrapper {
       } else if (collection instanceof short[]) {
         return ((short[]) collection)[i];
       } else {
+        // 非集合类型，抛出异常
         throw new ReflectionException("The '" + prop.getName() + "' property of " + collection + " is not a List or Array.");
       }
     }
   }
 
+  /**
+   * 设置集合中指定索引位置的值。
+   * 支持 Map、List 及各种基本类型数组。
+   *
+   * @param prop      属性标记器，包含索引信息
+   * @param collection 集合对象
+   * @param value     要设置的值
+   */
   protected void setCollectionValue(PropertyTokenizer prop, Object collection, Object value) {
     if (collection instanceof Map) {
       ((Map) collection).put(prop.getIndex(), value);
@@ -99,6 +133,7 @@ public abstract class BaseWrapper implements ObjectWrapper {
       } else if (collection instanceof short[]) {
         ((short[]) collection)[i] = (Short) value;
       } else {
+        // 非集合类型，抛出异常
         throw new ReflectionException("The '" + prop.getName() + "' property of " + collection + " is not a List or Array.");
       }
     }

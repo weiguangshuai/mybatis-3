@@ -20,48 +20,85 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 
 /**
+ * Log4j 日志实现类，将 MyBatis 日志输出到 Log4j 框架。
+ *
  * @author Eduardo Macarron
  */
 public class Log4jImpl implements Log {
   
+  /** 用于标识日志调用者的全限定类名 */
   private static final String FQCN = Log4jImpl.class.getName();
 
+  /** Log4j Logger 实例 */
   private final Logger log;
 
+  /**
+   * 构造方法，获取指定类的 Log4j Logger 实例。
+   *
+   * @param clazz 日志输出所属的类
+   */
   public Log4jImpl(String clazz) {
     log = Logger.getLogger(clazz);
   }
 
   @Override
   public boolean isDebugEnabled() {
+    // 检查 Log4j 配置是否启用了 DEBUG 级别
     return log.isDebugEnabled();
   }
 
   @Override
   public boolean isTraceEnabled() {
+    // 检查 Log4j 配置是否启用了 TRACE 级别
     return log.isTraceEnabled();
   }
 
+  /**
+   * 记录 ERROR 级别日志，带异常信息。
+   *
+   * @param s 日志消息
+   * @param e 异常对象
+   */
   @Override
   public void error(String s, Throwable e) {
     log.log(FQCN, Level.ERROR, s, e);
   }
 
+  /**
+   * 记录 ERROR 级别日志。
+   *
+   * @param s 日志消息
+   */
   @Override
   public void error(String s) {
     log.log(FQCN, Level.ERROR, s, null);
   }
 
+  /**
+   * 记录 DEBUG 级别日志。
+   *
+   * @param s 日志消息
+   */
   @Override
   public void debug(String s) {
     log.log(FQCN, Level.DEBUG, s, null);
   }
 
+  /**
+   * 记录 TRACE 级别日志。
+   *
+   * @param s 日志消息
+   */
   @Override
   public void trace(String s) {
     log.log(FQCN, Level.TRACE, s, null);
   }
 
+  /**
+   * 记录 WARN 级别日志。
+   *
+   * @param s 日志消息
+   */
   @Override
   public void warn(String s) {
     log.log(FQCN, Level.WARN, s, null);
