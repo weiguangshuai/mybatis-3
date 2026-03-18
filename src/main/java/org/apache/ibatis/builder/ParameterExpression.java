@@ -18,29 +18,28 @@ package org.apache.ibatis.builder;
 import java.util.HashMap;
 
 /**
- * Inline parameter expression parser. Supported grammar (simplified):
- *
- * <pre>
- * inline-parameter = (propertyName | expression) oldJdbcType attributes
- * propertyName = /expression language's property navigation path/
- * expression = '(' /expression language's expression/ ')'
- * oldJdbcType = ':' /any valid jdbc type/
- * attributes = (',' attribute)*
- * attribute = name '=' value
- * </pre>
+ * 内联参数表达式解析器。
+ * 将MyBatis内联参数解析为属性名、JDBC类型及属性键值对。
  *
  * @author Frank D. Martinez [mnesarco]
  */
 public class ParameterExpression extends HashMap<String, String> {
 
+  /** 序列化版本UID */
   private static final long serialVersionUID = -2417552199605158680L;
 
+  /**
+   * 解析内联参数表达式。
+   * @param expression 内联参数表达式，如 "id,jdbcType=INTEGER" 或 "(表达式),jdbcType=VARCHAR"
+   */
   public ParameterExpression(String expression) {
     parse(expression);
   }
 
+  /** 解析表达式，判断是表达式语法还是属性语法 */
   private void parse(String expression) {
     int p = skipWS(expression, 0);
+    // 以 '(' 开头表示表达式语法，否则为属性语法
     if (expression.charAt(p) == '(') {
       expression(expression, p + 1);
     } else {
@@ -48,7 +47,9 @@ public class ParameterExpression extends HashMap<String, String> {
     }
   }
 
+  /** 解析表达式语法 "(expression),jdbcType,attr" */
   private void expression(String expression, int left) {
+    // 匹配括号，找到对应的闭合括号
     int match = 1;
     int right = left + 1;
     while (match > 0) {
@@ -63,6 +64,7 @@ public class ParameterExpression extends HashMap<String, String> {
     jdbcTypeOpt(expression, right);
   }
 
+  /** 解析属性语法 "propertyName,jdbcType,attr" */
   private void property(String expression, int left) {
     if (left < expression.length()) {
       int right = skipUntil(expression, left, ",:");
@@ -71,6 +73,7 @@ public class ParameterExpression extends HashMap<String, String> {
     }
   }
 
+  /** 跳过空白字符，返回第一个非空白字符的位置 */
   private int skipWS(String expression, int p) {
     for (int i = p; i < expression.length(); i++) {
       if (expression.charAt(i) > 0x20) {
@@ -80,6 +83,7 @@ public class ParameterExpression extends HashMap<String, String> {
     return expression.length();
   }
 
+  /** 跳过字符直到遇到指定字符之一，返回该字符位置 */
   private int skipUntil(String expression, int p, final String endChars) {
     for (int i = p; i < expression.length(); i++) {
       char c = expression.charAt(i);
@@ -90,9 +94,11 @@ public class ParameterExpression extends HashMap<String, String> {
     return expression.length();
   }
 
+  /** 处理JDBC类型或属性选项 */
   private void jdbcTypeOpt(String expression, int p) {
     p = skipWS(expression, p);
     if (p < expression.length()) {
+      // ':' 后面是JDBC类型，',' 后面是属性选项
       if (expression.charAt(p) == ':') {
         jdbcType(expression, p + 1);
       } else if (expression.charAt(p) == ',') {
@@ -103,6 +109,7 @@ public class ParameterExpression extends HashMap<String, String> {
     }
   }
 
+  /** 解析JDBC类型 */
   private void jdbcType(String expression, int p) {
     int left = skipWS(expression, p);
     int right = skipUntil(expression, left, ",");
@@ -114,6 +121,7 @@ public class ParameterExpression extends HashMap<String, String> {
     option(expression, right + 1);
   }
 
+  /** 递归解析属性选项，格式为 key=value,key=value,... */
   private void option(String expression, int p) {
     int left = skipWS(expression, p);
     if (left < expression.length()) {
@@ -127,10 +135,13 @@ public class ParameterExpression extends HashMap<String, String> {
     }
   }
 
+  /** 去除字符串首尾空白字符 */
   private String trimmedStr(String str, int start, int end) {
+    // 跳过开头空白字符
     while (str.charAt(start) <= 0x20) {
       start++;
     }
+    // 跳过结尾空白字符
     while (str.charAt(end - 1) <= 0x20) {
       end--;
     }

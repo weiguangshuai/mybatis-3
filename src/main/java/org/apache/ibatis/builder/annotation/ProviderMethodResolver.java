@@ -48,19 +48,24 @@ public interface ProviderMethodResolver {
    * @throws BuilderException Throws when cannot resolve a target method
    */
   default Method resolveMethod(ProviderContext context) {
+    // 获取所有与方法名相同的方法
     List<Method> sameNameMethods = Arrays.stream(getClass().getMethods())
         .filter(m -> m.getName().equals(context.getMapperMethod().getName()))
         .collect(Collectors.toList());
+    // 未找到匹配方法，抛出异常
     if (sameNameMethods.isEmpty()) {
       throw new BuilderException("Cannot resolve the provider method because '"
           + context.getMapperMethod().getName() + "' not found in SqlProvider '" + getClass().getName() + "'.");
     }
+    // 过滤出返回类型为 CharSequence 或其子类的重载方法
     List<Method> targetMethods = sameNameMethods.stream()
         .filter(m -> CharSequence.class.isAssignableFrom(m.getReturnType()))
         .collect(Collectors.toList());
+    // 恰好找到一个匹配的方法，直接返回
     if (targetMethods.size() == 1) {
       return targetMethods.get(0);
     }
+    // 未找到返回类型匹配的方法，或找到多个重载方法，均抛出异常
     if (targetMethods.isEmpty()) {
       throw new BuilderException("Cannot resolve the provider method because '"
           + context.getMapperMethod().getName() + "' does not return the CharSequence or its subclass in SqlProvider '"

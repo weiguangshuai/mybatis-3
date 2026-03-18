@@ -18,24 +18,44 @@ package org.apache.ibatis.builder;
 import org.apache.ibatis.exceptions.PersistenceException;
 
 /**
+ * MyBatis 构建器模块的异常基类，用于封装 XML 映射器和注解配置解析过程中的错误。
+ *
  * @author Clinton Begin
  */
 public class BuilderException extends PersistenceException {
 
+  /** 序列化版本标识符，确保反序列化兼容性 */
   private static final long serialVersionUID = -3885164021020443281L;
 
+  /** 无参构造函数 */
   public BuilderException() {
     super();
   }
 
+  /**
+   * 带错误信息的构造函数。
+   *
+   * @param message 错误描述信息
+   */
   public BuilderException(String message) {
     super(message);
   }
 
+  /**
+   * 带错误信息和Cause的构造函数。
+   *
+   * @param message 错误描述信息
+   * @param cause 原始异常
+   */
   public BuilderException(String message, Throwable cause) {
     super(message, cause);
   }
 
+  /**
+   * 带Cause的构造函数。
+   *
+   * @param cause 原始异常
+   */
   public BuilderException(Throwable cause) {
     super(cause);
   }

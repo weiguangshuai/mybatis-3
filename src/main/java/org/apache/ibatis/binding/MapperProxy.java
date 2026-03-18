@@ -15,6 +15,10 @@
  */
 package org.apache.ibatis.binding;
 
+import org.apache.ibatis.reflection.ExceptionUtil;
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.util.MapUtil;
+
 import java.io.Serializable;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -25,10 +29,6 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
-
-import org.apache.ibatis.reflection.ExceptionUtil;
-import org.apache.ibatis.session.SqlSession;
-import org.apache.ibatis.util.MapUtil;
 
 /**
  * Mapper 接口的动态代理实现，负责拦截方法调用并转发到 SqlSession 执行。

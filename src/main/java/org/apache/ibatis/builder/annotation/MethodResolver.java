@@ -18,17 +18,30 @@ package org.apache.ibatis.builder.annotation;
 import java.lang.reflect.Method;
 
 /**
+ * 负责解析 Mapper 接口中单个方法的注解并构建对应的 SQL 语句。
+ *
  * @author Eduardo Macarron
  */
 public class MethodResolver {
+  /** 用于解析方法注解的构建器 */
   private final MapperAnnotationBuilder annotationBuilder;
+  /** 要解析的 Mapper 方法 */
   private final Method method;
 
+  /**
+   * 构造方法。
+   *
+   * @param annotationBuilder 用于解析方法注解的构建器
+   * @param method 要解析的 Mapper 方法
+   */
   public MethodResolver(MapperAnnotationBuilder annotationBuilder, Method method) {
     this.annotationBuilder = annotationBuilder;
     this.method = method;
   }
 
+  /**
+   * 解析方法上的注解并生成对应的 SQL 语句。
+   */
   public void resolve() {
     annotationBuilder.parseStatement(method);
   }

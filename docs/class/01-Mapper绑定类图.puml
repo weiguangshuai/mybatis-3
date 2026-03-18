@@ -1,0 +1,128 @@
+@startuml MyBatis-Mapper绑定类图
+title MyBatis Mapper 绑定类图
+left to right direction
+skinparam classAttributeIconSize 0
+
+class MapperRegistry {
+    -config: Configuration
+    -knownMappers: Map<Class<?>, MapperProxyFactory<?>>
+    +MapperRegistry(config: Configuration)
+    +getMapper(type: Class<T>, sqlSession: SqlSession): T
+    +hasMapper(type: Class<T>): boolean
+    +addMapper(type: Class<T>): void
+}
+
+class MapperProxyFactory<T> {
+    -mapperInterface: Class<T>
+    -methodCache: Map<Method, MapperMethodInvoker>
+    +MapperProxyFactory(mapperInterface: Class<T>)
+    +newInstance(sqlSession: SqlSession): T
+}
+
+class MapperProxy<T> {
+    -serialVersionUID: long
+    -sqlSession: SqlSession
+    -mapperInterface: Class<T>
+    -methodCache: Map<Method, MapperMethodInvoker>
+    +MapperProxy(sqlSession: SqlSession, mapperInterface: Class<T>, methodCache: Map<Method, MapperMethodInvoker>)
+    +invoke(proxy: Object, method: Method, args: Object[]): Object
+    -cachedInvoker(method: Method): MapperMethodInvoker
+}
+
+class MapperMethod {
+    -command: SqlCommand
+    -method: MethodSignature
+    +MapperMethod(mapperInterface: Class<?>, method: Method, config: Configuration)
+    +execute(sqlSession: SqlSession, args: Object[]): Object
+    -rowCountResult(rowCount: int): Object
+}
+
+interface SqlSession {
+    +selectOne(statement: String, parameter: Object): Object
+    +selectList(statement: String, parameter: Object): List<E>
+    +insert(statement: String, parameter: Object): int
+    +update(statement: String, parameter: Object): int
+    +delete(statement: String, parameter: Object): int
+    +getMapper(type: Class<T>): T
+    +commit(): void
+    +rollback(): void
+    +close(): void
+}
+
+class Configuration {
+    -mapperRegistry: MapperRegistry
+    +Configuration()
+    +getMapper(type: Class<T>, sqlSession: SqlSession): T
+    +addMapper(type: Class<T>): void
+}
+
+interface MapperMethodInvoker {
+    +invoke(proxy: Object, method: Method, args: Object[], sqlSession: SqlSession): Object
+}
+
+class PlainMethodInvoker {
+    -mapperMethod: MapperMethod
+    +PlainMethodInvoker(mapperMethod: MapperMethod)
+    +invoke(proxy: Object, method: Method, args: Object[], sqlSession: SqlSession): Object
+}
+
+class DefaultMethodInvoker {
+    -methodHandle: MethodHandle
+    +DefaultMethodInvoker(methodHandle: MethodHandle)
+    +invoke(proxy: Object, method: Method, args: Object[], sqlSession: SqlSession): Object
+}
+
+enum SqlCommandType {
+    UNKNOWN
+    SELECT
+    INSERT
+    UPDATE
+    DELETE
+    FLUSH
+}
+
+' 关系定义
+SqlSession --> Configuration: uses
+Configuration --> MapperRegistry: uses
+MapperRegistry --> MapperProxyFactory: creates
+MapperProxyFactory ..> MapperProxy: creates
+MapperProxy --> SqlSession: uses
+MapperProxy --> MapperMethod: uses
+MapperMethodInvoker <|.. PlainMethodInvoker
+MapperMethodInvoker <|.. DefaultMethodInvoker
+MapperMethod --> SqlCommandType: uses
+
+note right of MapperRegistry
+  Mapper接口注册中心
+  管理knownMappers缓存
+  提供getMapper获取代理对象
+end note
+
+note right of MapperProxyFactory
+  创建Mapper代理对象
+  使用JDK动态代理
+end note
+
+note right of MapperProxy
+  方法调用拦截器
+  实现InvocationHandler
+  拦截Mapper接口方法
+end note
+
+note right of MapperMethod
+  执行SQL命令
+  封装SQL命令信息
+  解析方法参数
+end note
+
+note right of SqlSession
+  核心API
+  提供增删改查方法
+end note
+
+note right of Configuration
+  全局配置中心
+  管理MapperRegistry
+end note
+
+@enduml

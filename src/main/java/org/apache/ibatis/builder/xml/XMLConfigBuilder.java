@@ -48,48 +48,109 @@ import org.apache.ibatis.transaction.TransactionFactory;
 import org.apache.ibatis.type.JdbcType;
 
 /**
+ * MyBatis 配置文件的解析器，负责将 XML 配置文件转换为 Configuration 对象。
+ *
  * @author Clinton Begin
  * @author Kazuki Shimizu
  */
 public class XMLConfigBuilder extends BaseBuilder {
 
+  /** 标记配置文件是否已被解析，防止重复解析 */
   private boolean parsed;
+  /** XML 解析器，用于解析 MyBatis 配置文件 */
   private final XPathParser parser;
+  /** 当前使用的环境标识，与配置文件中 environments 的 default 属性对应 */
   private String environment;
+  /** 本地反射工厂，用于验证 settings 中的属性是否存在 */
   private final ReflectorFactory localReflectorFactory = new DefaultReflectorFactory();
 
+  /**
+   * 使用 Reader 构造配置构建器。
+   *
+   * @param reader 配置文件的 Reader
+   */
   public XMLConfigBuilder(Reader reader) {
     this(reader, null, null);
   }
 
+  /**
+   * 使用 Reader 和环境名称构造配置构建器。
+   *
+   * @param reader 配置文件的 Reader
+   * @param environment 环境名称
+   */
   public XMLConfigBuilder(Reader reader, String environment) {
     this(reader, environment, null);
   }
 
+  /**
+   * 使用 Reader、环境名称和属性构造配置构建器。
+   *
+   * @param reader 配置文件的 Reader
+   * @param environment 环境名称
+   * @param props 初始属性
+   */
   public XMLConfigBuilder(Reader reader, String environment, Properties props) {
     this(Configuration.class, reader, environment, props);
   }
 
+  /**
+   * 使用自定义配置类、Reader、环境名称和属性构造配置构建器。
+   *
+   * @param configClass 自定义配置类
+   * @param reader 配置文件的 Reader
+   * @param environment 环境名称
+   * @param props 初始属性
+   */
   public XMLConfigBuilder(Class<? extends Configuration> configClass, Reader reader, String environment, Properties props) {
     this(configClass, new XPathParser(reader, true, props, new XMLMapperEntityResolver()), environment, props);
   }
 
+  /**
+   * 使用 InputStream 构造配置构建器。
+   *
+   * @param inputStream 配置文件的 InputStream
+   */
   public XMLConfigBuilder(InputStream inputStream) {
     this(inputStream, null, null);
   }
 
+  /**
+   * 使用 InputStream 和环境名称构造配置构建器。
+   *
+   * @param inputStream 配置文件的 InputStream
+   * @param environment 环境名称
+   */
   public XMLConfigBuilder(InputStream inputStream, String environment) {
     this(inputStream, environment, null);
   }
 
+  /**
+   * 使用 InputStream、环境名称和属性构造配置构建器。
+   *
+   * @param inputStream 配置文件的 InputStream
+   * @param environment 环境名称
+   * @param props 初始属性
+   */
   public XMLConfigBuilder(InputStream inputStream, String environment, Properties props) {
     this(Configuration.class, inputStream, environment, props);
   }
 
+  /**
+   * 使用自定义配置类、InputStream、环境名称和属性构造配置构建器。
+   *
+   * @param configClass 自定义配置类
+   * @param inputStream 配置文件的 InputStream
+   * @param environment 环境名称
+   * @param props 初始属性
+   */
   public XMLConfigBuilder(Class<? extends Configuration> configClass, InputStream inputStream, String environment, Properties props) {
     this(configClass, new XPathParser(inputStream, true, props, new XMLMapperEntityResolver()), environment, props);
   }
 
+  /**
+   * 私有构造函数，初始化配置构建器的核心组件。
+   */
   private XMLConfigBuilder(Class<? extends Configuration> configClass, XPathParser parser, String environment, Properties props) {
     super(newConfig(configClass));
     ErrorContext.instance().resource("SQL Mapper Configuration");
@@ -99,6 +160,13 @@ public class XMLConfigBuilder extends BaseBuilder {
     this.parser = parser;
   }
 
+  /**
+   * 解析 MyBatis 配置文件，返回 Configuration 对象。
+   * 每个 XMLConfigBuilder 实例只能使用一次，否则抛出异常。
+   *
+   * @return 解析后的 Configuration 对象
+   * @throws BuilderException 如果配置文件已被解析过
+   */
   public Configuration parse() {
     if (parsed) {
       throw new BuilderException("Each XMLConfigBuilder can only be used once.");
@@ -108,6 +176,11 @@ public class XMLConfigBuilder extends BaseBuilder {
     return configuration;
   }
 
+  /**
+   * 解析配置文件根节点，按顺序处理各配置元素。
+   *
+   * @param root 配置文件的根节点 (/configuration)
+   */
   private void parseConfiguration(XNode root) {
     try {
       // issue #117 read properties first
@@ -131,6 +204,12 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
+  /**
+   * 将 settings 节点转换为 Properties 对象，并验证属性名是否合法。
+   *
+   * @param context settings 节点
+   * @return 解析后的属性对象
+   */
   private Properties settingsAsProperties(XNode context) {
     if (context == null) {
       return new Properties();
@@ -146,6 +225,12 @@ public class XMLConfigBuilder extends BaseBuilder {
     return props;
   }
 
+  /**
+   * 加载自定义 VFS 实现类。
+   *
+   * @param props 包含 vfsImpl 配置的属性对象
+   * @throws ClassNotFoundException 如果 VFS 实现类不存在
+   */
   private void loadCustomVfs(Properties props) throws ClassNotFoundException {
     String value = props.getProperty("vfsImpl");
     if (value != null) {
@@ -160,11 +245,21 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
+  /**
+   * 加载自定义日志实现类。
+   *
+   * @param props 包含 logImpl 配置的属性对象
+   */
   private void loadCustomLogImpl(Properties props) {
     Class<? extends Log> logImpl = resolveClass(props.getProperty("logImpl"));
     configuration.setLogImpl(logImpl);
   }
 
+  /**
+   * 解析 typeAliases 节点，注册类型别名。
+   *
+   * @param parent typeAliases 节点
+   */
   private void typeAliasesElement(XNode parent) {
     if (parent != null) {
       for (XNode child : parent.getChildren()) {
@@ -189,6 +284,12 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
+  /**
+   * 解析 plugins 节点，注册拦截器。
+   *
+   * @param parent plugins 节点
+   * @throws Exception 如果拦截器实例化失败
+   */
   private void pluginElement(XNode parent) throws Exception {
     if (parent != null) {
       for (XNode child : parent.getChildren()) {
@@ -201,6 +302,12 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
+  /**
+   * 解析 objectFactory 节点，注册自定义对象工厂。
+   *
+   * @param context objectFactory 节点
+   * @throws Exception 如果对象工厂实例化失败
+   */
   private void objectFactoryElement(XNode context) throws Exception {
     if (context != null) {
       String type = context.getStringAttribute("type");
@@ -211,6 +318,12 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
+  /**
+   * 解析 objectWrapperFactory 节点，注册自定义对象包装器工厂。
+   *
+   * @param context objectWrapperFactory 节点
+   * @throws Exception 如果对象包装器工厂实例化失败
+   */
   private void objectWrapperFactoryElement(XNode context) throws Exception {
     if (context != null) {
       String type = context.getStringAttribute("type");
@@ -219,6 +332,12 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
+  /**
+   * 解析 reflectorFactory 节点，注册自定义反射工厂。
+   *
+   * @param context reflectorFactory 节点
+   * @throws Exception 如果反射工厂实例化失败
+   */
   private void reflectorFactoryElement(XNode context) throws Exception {
     if (context != null) {
       String type = context.getStringAttribute("type");
@@ -227,11 +346,18 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
+  /**
+   * 解析 properties 节点，加载外部属性文件。
+   *
+   * @param context properties 节点
+   * @throws Exception 如果属性文件加载失败
+   */
   private void propertiesElement(XNode context) throws Exception {
     if (context != null) {
       Properties defaults = context.getChildrenAsProperties();
       String resource = context.getStringAttribute("resource");
       String url = context.getStringAttribute("url");
+      // resource 和 url 不能同时指定
       if (resource != null && url != null) {
         throw new BuilderException("The properties element cannot specify both a URL and a resource based property file reference.  Please specify one or the other.");
       }
@@ -240,6 +366,7 @@ public class XMLConfigBuilder extends BaseBuilder {
       } else if (url != null) {
         defaults.putAll(Resources.getUrlAsProperties(url));
       }
+      // 合并构造函数中传入的变量
       Properties vars = configuration.getVariables();
       if (vars != null) {
         defaults.putAll(vars);
@@ -249,6 +376,11 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
+  /**
+   * 应用 settings 配置到 Configuration 对象。
+   *
+   * @param props 解析后的 settings 属性
+   */
   private void settingsElement(Properties props) {
     configuration.setAutoMappingBehavior(AutoMappingBehavior.valueOf(props.getProperty("autoMappingBehavior", "PARTIAL")));
     configuration.setAutoMappingUnknownColumnBehavior(AutoMappingUnknownColumnBehavior.valueOf(props.getProperty("autoMappingUnknownColumnBehavior", "NONE")));
@@ -282,6 +414,12 @@ public class XMLConfigBuilder extends BaseBuilder {
     configuration.setNullableOnForEach(booleanValueOf(props.getProperty("nullableOnForEach"), false));
   }
 
+  /**
+   * 解析 environments 节点，配置数据源和事务管理器。
+   *
+   * @param context environments 节点
+   * @throws Exception 如果环境配置解析失败
+   */
   private void environmentsElement(XNode context) throws Exception {
     if (context != null) {
       if (environment == null) {
@@ -303,6 +441,12 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
+  /**
+   * 解析 databaseIdProvider 节点，配置数据库标识解析器。
+   *
+   * @param context databaseIdProvider 节点
+   * @throws Exception 如果数据库标识提供器实例化失败
+   */
   private void databaseIdProviderElement(XNode context) throws Exception {
     DatabaseIdProvider databaseIdProvider = null;
     if (context != null) {
@@ -322,6 +466,13 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
+  /**
+   * 解析 transactionManager 节点，创建事务工厂。
+   *
+   * @param context transactionManager 节点
+   * @return 事务工厂实例
+   * @throws Exception 如果事务工厂实例化失败
+   */
   private TransactionFactory transactionManagerElement(XNode context) throws Exception {
     if (context != null) {
       String type = context.getStringAttribute("type");
@@ -333,6 +484,13 @@ public class XMLConfigBuilder extends BaseBuilder {
     throw new BuilderException("Environment declaration requires a TransactionFactory.");
   }
 
+  /**
+   * 解析 dataSource 节点，创建数据源工厂。
+   *
+   * @param context dataSource 节点
+   * @return 数据源工厂实例
+   * @throws Exception 如果数据源工厂实例化失败
+   */
   private DataSourceFactory dataSourceElement(XNode context) throws Exception {
     if (context != null) {
       String type = context.getStringAttribute("type");
@@ -344,6 +502,11 @@ public class XMLConfigBuilder extends BaseBuilder {
     throw new BuilderException("Environment declaration requires a DataSourceFactory.");
   }
 
+  /**
+   * 解析 typeHandlers 节点，注册类型处理器。
+   *
+   * @param parent typeHandlers 节点
+   */
   private void typeHandlerElement(XNode parent) {
     if (parent != null) {
       for (XNode child : parent.getChildren()) {
@@ -371,6 +534,12 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
+  /**
+   * 解析 mappers 节点，注册 Mapper 接口或 XML 文件。
+   *
+   * @param parent mappers 节点
+   * @throws Exception 如果 Mapper 解析失败
+   */
   private void mapperElement(XNode parent) throws Exception {
     if (parent != null) {
       for (XNode child : parent.getChildren()) {
@@ -381,19 +550,23 @@ public class XMLConfigBuilder extends BaseBuilder {
           String resource = child.getStringAttribute("resource");
           String url = child.getStringAttribute("url");
           String mapperClass = child.getStringAttribute("class");
+          // 根据配置方式选择不同的加载策略
           if (resource != null && url == null && mapperClass == null) {
+            // 从类路径加载 XML 文件
             ErrorContext.instance().resource(resource);
             try(InputStream inputStream = Resources.getResourceAsStream(resource)) {
               XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, resource, configuration.getSqlFragments());
               mapperParser.parse();
             }
           } else if (resource == null && url != null && mapperClass == null) {
+            // 从 URL 加载 XML 文件
             ErrorContext.instance().resource(url);
             try(InputStream inputStream = Resources.getUrlAsStream(url)){
               XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, url, configuration.getSqlFragments());
               mapperParser.parse();
             }
           } else if (resource == null && url == null && mapperClass != null) {
+            // 通过接口类注册
             Class<?> mapperInterface = Resources.classForName(mapperClass);
             configuration.addMapper(mapperInterface);
           } else {
@@ -404,6 +577,13 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
+  /**
+   * 判断指定的环境 ID 是否为当前配置的环境。
+   *
+   * @param id 环境 ID
+   * @return 是否匹配当前环境
+   * @throws BuilderException 如果环境未指定或 ID 无效
+   */
   private boolean isSpecifiedEnvironment(String id) {
     if (environment == null) {
       throw new BuilderException("No environment specified.");
@@ -414,6 +594,13 @@ public class XMLConfigBuilder extends BaseBuilder {
     return environment.equals(id);
   }
 
+  /**
+   * 创建 Configuration 实例。
+   *
+   * @param configClass 配置类类型
+   * @return 新的 Configuration 实例
+   * @throws BuilderException 如果实例化失败
+   */
   private static Configuration newConfig(Class<? extends Configuration> configClass) {
     try {
       return configClass.getDeclaredConstructor().newInstance();

@@ -1,0 +1,329 @@
+@startuml MyBatis-Architecture-Overview
+
+title MyBatis 整体架构时序图（模块协作）
+
+actor 开发者 as User
+
+box "客户端层-用户代码" #LightBlue
+    participant ":User Code" as UserCode
+    participant ":Mapper Interface" as MapperInterface
+end box
+
+box "核心层-MyBatis核心API" #LightYellow
+    participant ":SqlSession" as SqlSession
+    participant ":Configuration" as Config
+    participant ":MapperRegistry" as MapperRegistry
+    participant ":MapperProxy" as MapperProxy
+end box
+
+box "执行器层-SQL执行与缓存" #LightGreen
+    participant ":CachingExecutor" as CachingExec
+    participant ":BaseExecutor" as BaseExec
+    participant ":SimpleExecutor" as SimpleExec
+    participant ":BatchExecutor" as BatchExec
+    participant ":ReuseExecutor" as ReuseExec
+end box
+
+box "语句层-SQL语句处理" #LightCoral
+    participant ":StatementHandler" as StatementHandler
+    participant ":ParameterHandler" as ParamHandler
+    participant ":ResultSetHandler" as ResultSetHandler
+    participant ":SqlSource" as SqlSource
+end box
+
+box "JDBC层-数据库交互" #LightGray
+    participant ":Connection" as Connection
+    participant ":PreparedStatement" as PS
+    participant ":ResultSet" as RS
+    participant ":Transaction" as Transaction
+end box
+
+box "缓存层-二级缓存" #LightPink
+    participant ":TransactionalCacheManager" as TCM
+    participant ":PerpetualCache" as PerpetualCache
+    participant ":Cache" as SecondCache
+end box
+
+note over User, MapperProxy
+  ★ 获取Mapper过程:
+  开发者调用sqlSession.getMapper()
+  MyBatis创建Mapper接口的代理对象
+end note
+
+== 1. 获取Mapper（初始化/首次使用）==
+
+User -> SqlSession: getMapper(UserMapper.class)
+note right of SqlSession
+  获取Mapper接口的实例
+end note
+
+SqlSession -> Config: getMapper(type, sqlSession)
+note right of Config
+  委托Configuration处理
+end note
+
+Config -> MapperRegistry: getMapper(type)
+note right of MapperRegistry
+  从MapperRegistry获取
+end note
+
+MapperRegistry -> MapperProxy: newInstance(sqlSession)
+note right of MapperProxy
+  创建MapperProxy
+  (JDK动态代理)
+end note
+
+MapperProxy --> SqlSession: MapperProxy
+SqlSession --> UserCode: MapperProxy
+
+note right of UserCode
+  返回代理对象
+  实际调用时拦截
+end note
+
+== 2. 执行查询（完整流程）==
+
+UserCode -> MapperProxy: userMapper.selectUserById(1)
+note right of UserCode
+  调用Mapper接口方法
+end note
+
+activate MapperProxy
+
+MapperProxy -> MapperProxy: invoke(method, args)
+note right of MapperProxy
+  拦截方法调用
+end note
+
+alt 调用Object方法
+    MapperProxy -> MapperProxy: 直接调用
+else 调用Mapper方法
+    MapperProxy -> MapperMethod: execute(sqlSession, args)
+    note right of MapperProxy
+      创建MapperMethod并执行
+    end note
+
+    activate MapperMethod
+
+    alt SELECT查询
+        MapperMethod -> SqlSession: selectOne(statement, param)
+        activate SqlSession
+
+        SqlSession -> Config: getMappedStatement(statementId)
+        note right of Config
+          获取MappedStatement
+          包含SQL、映射配置等
+        end note
+
+        Config --> SqlSession: MappedStatement
+
+        SqlSession -> CachingExec: query(ms, param, rowBounds, handler)
+        activate CachingExec
+
+        alt 二级缓存处理
+            CachingExec -> TCM: getObject(cache, key)
+            TCM -> PerpetualCache: getObject(key)
+            TCM --> CachingExec: cachedList
+
+            alt 缓存命中
+                CachingExec --> SqlSession: cachedList
+                note right of SqlSession
+                  直接返回缓存
+                end note
+            else 缓存未命中
+                CachingExec -> BaseExec: query(...)
+                activate BaseExec
+
+                alt 一级缓存处理
+                    BaseExec -> BaseExec: localCache.getObject(key)
+
+                    alt 命中
+                        BaseExec --> CachingExec: cachedList
+                    else 未命中
+                        BaseExec -> SimpleExec: doQuery(...)
+                        activate SimpleExec
+
+                        SimpleExec -> StatementHandler: prepare(connection)
+                        note right of StatementHandler
+                          创建PreparedStatement
+                        end note
+
+                        StatementHandler -> Connection: prepareStatement(sql)
+                        Connection --> StatementHandler: PS
+
+                        StatementHandler -> ParamHandler: setParameters(PS)
+                        note right of ParamHandler
+                          设置SQL参数
+                          #{}参数绑定
+                        end note
+
+                        ParamHandler -> PS: setXXX(...)
+
+                        StatementHandler -> ResultSetHandler: handleResultSets(PS)
+                        activate ResultSetHandler
+
+                        ResultSetHandler -> RS: next()
+                        ResultSetHandler -> ResultSetHandler: mapResult(rs)
+                        note right of ResultSetHandler
+                          映射ResultSet到Java对象
+                        end note
+
+                        ResultSetHandler --> SimpleExec: resultList
+                        deactivate ResultSetHandler
+
+                        SimpleExec -> BaseExec: resultList
+                        deactivate SimpleExec
+
+                        BaseExec -> PerpetualCache: putObject(key, resultList)
+                        note right of BaseExec
+                          放入一级缓存
+                        end note
+
+                        BaseExec --> CachingExec: resultList
+                    end
+                end
+
+                CachingExec -> TCM: putObject(cache, resultList)
+                note right of CachingExec
+                  放入二级缓存
+                  事务提交后生效
+                end note
+
+                CachingExec --> SqlSession: resultList
+                deactivate BaseExec
+            end
+        end
+
+        SqlSession --> MapperMethod: result
+        deactivate CachingExec
+        deactivate SqlSession
+
+        MapperMethod --> MapperProxy: returnValue
+        deactivate MapperMethod
+    end
+end
+
+MapperProxy --> UserCode: returnValue
+deactivate MapperProxy
+
+== 3. 执行增删改（更新操作）==
+
+UserCode -> MapperProxy: userMapper.insertUser(user)
+activate MapperProxy
+
+MapperProxy -> MapperMethod: execute(sqlSession, user)
+activate MapperMethod
+
+alt INSERT/UPDATE/DELETE
+    MapperMethod -> SqlSession: update(statement, param)
+    activate SqlSession
+
+    SqlSession -> CachingExecutor: update(ms, param)
+    activate CachingExecutor
+
+    CachingExecutor -> CachingExecutor: flushCacheIfRequired(ms)
+    note right of CachingExecutor
+      检查是否需要刷新缓存
+    end note
+
+    alt 需要刷新
+        CachingExecutor -> TCM: clear(cache)
+    end
+
+    CachingExecutor -> BaseExecutor: update(ms, param)
+    activate BaseExecutor
+
+    BaseExecutor -> BaseExecutor: clearLocalCache()
+    note right of BaseExecutor
+      清空一级缓存
+    end note
+
+    BaseExecutor -> SimpleExec: doUpdate(ms, param)
+    activate SimpleExec
+
+    SimpleExec -> StatementHandler: update(ps)
+    StatementHandler -> PS: execute()
+
+    PS -> StatementHandler: updateCount
+
+    StatementHandler -> KeyGenerator: processAfter(...)
+    note right of StatementHandler
+      处理主键生成
+      如自增ID
+    end note
+
+    SimpleExec -> TCM: commit()
+    note right of SimpleExec
+      提交事务缓存
+    end note
+
+    BaseExecutor --> CachingExecutor: rows
+    deactivate BaseExecutor
+
+    CachingExecutor --> SqlSession: rows
+    deactivate CachingExecutor
+
+    SqlSession --> MapperMethod: rows
+    deactivate SqlSession
+
+    MapperMethod --> MapperProxy: returnValue
+    deactivate MapperMethod
+end
+
+MapperProxy --> UserCode: returnValue
+deactivate MapperProxy
+
+== 4. 事务提交流程 ==
+
+UserCode -> SqlSession: commit()
+SqlSession -> CachingExecutor: commit(required)
+activate CachingExecutor
+
+CachingExecutor -> BaseExecutor: commit(required)
+activate BaseExecutor
+
+BaseExecutor -> Transaction: commit()
+note right of BaseExecutor
+  提交数据库事务
+end note
+
+BaseExecutor --> CachingExecutor: void
+deactivate BaseExecutor
+
+CachingExecutor -> TCM: commit()
+activate TCM
+TCM -> SecondCache: flush()
+note right of TCM
+  将pending队列
+  写入二级缓存
+end note
+deactivate TCM
+
+CachingExecutor --> SqlSession: void
+deactivate CachingExecutor
+
+note over UserCode, SecondCache
+  ★ MyBatis分层架构:
+
+  【客户端层】 - 开发者代码
+     ↓
+  【核心API层】 - SqlSession/Configuration
+     ↓
+  【执行器层】 - Executor (缓存管理)
+     ↓
+  【语句处理层】 - StatementHandler
+     ↓
+  【JDBC层】 - JDBC API
+     ↓
+  【数据库】 - MySQL/Oracle等
+
+  ★ 核心流程:
+  1. getMapper() → 创建代理对象
+  2. 方法调用 → invoke() 拦截
+  3. SqlSession → 执行器
+  4. Executor → 语句处理
+  5. JDBC → 数据库
+  6. ResultSetHandler → 返回结果
+end note
+
+@enduml

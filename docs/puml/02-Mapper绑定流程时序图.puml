@@ -1,0 +1,187 @@
+@startuml MyBatis-Mapper-Binding流程
+title MyBatis Mapper 绑定流程时序图
+hide footbox
+
+actor 用户 as User
+participant ":SqlSession" as SqlSession
+participant ":Configuration" as Config
+participant ":MapperRegistry" as MapperRegistry
+participant ":MapperProxyFactory" as MapperProxyFactory
+participant ":MapperProxy" as MapperProxy
+participant ":MapperMethod" as MapperMethod
+participant ":CachingExecutor" as CachingExec
+participant ":Executor" as Executor
+
+== 1. 获取Mapper阶段：创建代理对象 ==
+
+User -> SqlSession: getMapper(MapperInterface.class)
+note right of User
+  用户通过SqlSession
+  获取Mapper接口的实例
+  实际上是获取代理对象
+end note
+SqlSession -> Config: getMapper(type, sqlSession)
+note right of SqlSession
+  委托Configuration
+  调用MapperRegistry处理
+end note
+Config -> MapperRegistry: getMapper(type)
+note right of Config
+  根据接口类型
+  从knownMappers缓存中
+  获取MapperProxyFactory
+end note
+
+MapperRegistry -> MapperProxyFactory: newInstance(sqlSession)
+note right of MapperRegistry
+  创建MapperProxy实例
+end note
+MapperProxyFactory -> MapperProxy: new MapperProxy(sqlSession, mapperInterface, methodCache)
+note right of MapperProxyFactory
+  初始化MapperProxy
+  - 保存SqlSession引用
+  - 保存Mapper接口
+  - 初始化方法缓存
+end note
+MapperProxy --> MapperProxyFactory: mapperProxy
+MapperProxyFactory --> SqlSession: mapperProxy
+SqlSession --> User: mapperProxy (动态代理对象)
+note right of User
+  返回JDK动态代理对象
+  实际类型是$Proxy$N
+end note
+
+== 2. 执行Mapper方法阶段：代理拦截 ==
+
+User -> MapperProxy: mapper.method(params)
+note right of User
+  用户调用Mapper接口方法
+  触发invoke拦截
+end note
+activate MapperProxy
+
+alt 调用Object方法
+    MapperProxy -> MapperProxy: equals/hashCode/toString
+    note right of MapperProxy
+      如果是Object的方法
+      直接调用原始方法
+    end note
+    MapperProxy --> User: result
+
+else 调用Mapper接口方法
+    MapperProxy -> MapperProxy: cachedMapperMethod(method)
+    note right of MapperProxy
+      从methodCache缓存中
+      获取MapperMethod
+      避免重复创建
+    end note
+
+    alt 缓存中不存在
+        MapperProxy -> MapperMethod: new MapperMethod(mapperInterface, method, config)
+        note right of MapperProxy
+          创建MapperMethod
+          - 解析方法签名
+          - 判断SQL命令类型
+          - 创建ParamNameResolver
+        end note
+        MapperMethod --> MapperProxy: MapperMethod
+        MapperProxy -> MapperProxy: methodCache.put(method, mapperMethod)
+        note right of MapperProxy
+          放入缓存
+          下次直接使用
+        end note
+    end
+
+    MapperProxy -> MapperMethod: execute(sqlSession, args)
+    note right of MapperProxy
+      执行Mapper方法
+      传入SqlSession和参数
+    end note
+    activate MapperMethod
+
+    alt SELECT操作
+        MapperMethod -> SqlSession: selectOne/selectList/selectMap/select
+        note right of SqlSession
+          根据返回类型选择
+          - selectOne: 返回单条
+          - selectList: 返回列表
+          - selectMap: 返回Map
+          - select: 自定义处理
+        end note
+        activate SqlSession
+
+        SqlSession -> CachingExec: query(...)
+        note right of CachingExec
+          进入查询流程
+          参考SQL执行时序图
+        end note
+        activate CachingExec
+
+        CachingExec -> Executor: (执行查询流程，参考SQL执行时序图)
+        note right of Executor
+          详细流程:
+          1. CachingExecutor处理二级缓存
+          2. BaseExecutor处理一级缓存
+          3. SimpleExecutor执行SQL
+          4. ResultSetHandler映射结果
+        end note
+        Executor --> CachingExec: results
+        deactivate CachingExec
+
+        SqlSession --> MapperMethod: results
+        deactivate SqlSession
+
+        MapperMethod -> MapperMethod: convertToReturnType(results)
+        note right of MapperMethod
+          根据返回类型转换结果:
+          - 方法返回void: 忽略
+          - 方法返回List: 直接返回
+          - 方法返回单对象: 取第一个
+          - 方法返回Map: 转换为Map
+        end note
+        MapperMethod --> MapperProxy: return value
+
+    else INSERT操作
+        MapperMethod -> SqlSession: insert(statement, param)
+        note right of SqlSession
+          执行插入操作
+        end note
+        SqlSession --> MapperMethod: rows
+        note right of MapperMethod
+          返回影响行数
+        end note
+        MapperMethod --> MapperProxy: return value
+
+    else UPDATE操作
+        MapperMethod -> SqlSession: update(statement, param)
+        note right of SqlSession
+          执行更新操作
+        end note
+        SqlSession --> MapperMethod: rows
+        MapperMethod --> MapperProxy: return value
+
+    else DELETE操作
+        MapperMethod -> SqlSession: delete(statement, param)
+        note right of SqlSession
+          执行删除操作
+        end note
+        SqlSession --> MapperMethod: rows
+        MapperMethod --> MapperProxy: return value
+
+    else FLUSH操作
+        MapperMethod -> SqlSession: flushStatements()
+        note right of SqlSession
+          执行批处理刷新
+        end note
+        SqlSession --> MapperMethod: batchResults
+        MapperMethod --> MapperProxy: return value
+
+    end
+
+    deactivate MapperMethod
+end
+
+MapperProxy --> User: return value
+deactivate MapperProxy
+
+@enduml

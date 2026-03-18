@@ -1,0 +1,271 @@
+@startuml MyBatis-Initialization初始化流程
+title MyBatis 初始化流程时序图
+hide footbox
+
+actor 开发者 as User
+participant ":SqlSessionFactoryBuilder" as Builder
+participant ":XMLConfigBuilder" as XMLConfigBuilder
+participant ":Configuration" as Config
+participant ":XMLMapperBuilder" as XMLMapperBuilder
+participant ":MapperBuilderAssistant" as Assistant
+participant ":MapperRegistry" as MapperRegistry
+participant ":Executor" as Executor
+participant ":CachingExecutor" as CachingExec
+participant ":TransactionFactory" as TransFactory
+participant ":DataSourceFactory" as DSFactory
+participant ":Environment" as Environment
+participant ":MappedStatement" as MappedStatement
+
+note over User, Builder
+  ★ 初始化入口:
+  SqlSessionFactoryBuilder.build(Reader/InputStream)
+  加载mybatis-config.xml配置文件
+end note
+
+== 1. 构建SqlSessionFactory阶段 ==
+
+User -> Builder: build(Reader/InputStream)
+note right of Builder
+  传入配置文件
+  可以是Reader、InputStream、File等
+end note
+
+Builder -> XMLConfigBuilder: new Configuration(), parse()
+note right of XMLConfigBuilder
+  创建XMLConfigBuilder
+  并开始解析配置文件
+end note
+activate XMLConfigBuilder
+
+XMLConfigBuilder -> Config: new Configuration()
+note right of Config
+  创建全局配置对象
+  初始化各组件的默认实现
+end note
+activate Config
+
+note over Config
+  初始化内容:
+  - typeAliasRegistry: 类型别名注册
+  - typeHandlerRegistry: 类型处理器注册
+  - interceptorChain: 拦截器链
+  - mappedStatements: 已解析的SQL语句
+  - resultMaps: 结果映射集合
+  - caches: 二级缓存集合
+end note
+
+Config --> XMLConfigBuilder: configuration
+deactivate Config
+
+XMLConfigBuilder -> XMLConfigBuilder: parseConfiguration(root)
+note right of XMLConfigBuilder
+  解析configuration根节点下的子节点
+end note
+
+alt 解析properties
+    XMLConfigBuilder -> XMLConfigBuilder: propertiesElement(root.evalNode("properties"))
+    note right of XMLConfigBuilder
+      解析properties节点
+      加载外部属性文件
+    end note
+    XMLConfigBuilder -> Config: setVariables(props)
+end
+
+alt 解析settings
+    XMLConfigBuilder -> XMLConfigBuilder: settingsElement(root.evalNode("settings"))
+    note right of XMLConfigBuilder
+      解析settings节点
+      配置MyBatis运行行为
+    end note
+
+    note over Config
+      重要配置项:
+      - cacheEnabled: 二级缓存开关
+      - lazyLoadingEnabled: 延迟加载开关
+      - defaultExecutorType: 默认执行器类型
+      - defaultStatementTimeout: 默认超时时间
+      - mapUnderscoreToCamelCase: 下划线转驼峰
+      - localCacheScope: 本地缓存作用域
+    end note
+end
+
+alt 解析typeAliases
+    XMLConfigBuilder -> XMLConfigBuilder: typeAliasesElement(root.evalNode("typeAliases"))
+    note right of XMLConfigBuilder
+      解析typeAliases节点
+      注册类型别名
+    end note
+    XMLConfigBuilder -> Config: typeAliasRegistry.registerAlias(...)
+end
+
+alt 解析plugins
+    XMLConfigBuilder -> XMLConfigBuilder: pluginElement(root.evalNode("plugins"))
+    note right of XMLConfigBuilder
+      解析plugins节点
+      添加插件(拦截器)
+    end note
+    XMLConfigBuilder -> Config: addInterceptor(interceptor)
+end
+
+alt 解析environments
+    XMLConfigBuilder -> XMLConfigBuilder: environmentsElement(root.evalNode("environments"))
+    note right of XMLConfigBuilder
+      解析environments节点
+      配置数据源和事务
+    end note
+
+    alt 解析transactionManager
+        XMLConfigBuilder -> TransFactory: newTransaction(dataSource, level, autoCommit)
+        note right of TransFactory
+          创建事务工厂
+          生成Transaction对象
+        end note
+    end
+
+    alt 解析dataSource
+        XMLConfigBuilder -> DSFactory: newDataSource(props)
+        note right of DSFactory
+          创建数据源工厂
+          生成DataSource(连接池)
+        end note
+    end
+
+    XMLConfigBuilder -> Environment: new Environment(id, transactionFactory, dataSource)
+    XMLConfigBuilder -> Config: setEnvironment(environment)
+end
+
+alt 解析mappers
+    XMLConfigBuilder -> XMLConfigBuilder: mapperElement(root.evalNode("mappers"))
+    note right of XMLConfigBuilder
+      解析mappers节点
+      加载Mapper接口和XML
+    end note
+
+    alt package方式
+        XMLConfigBuilder -> Config: addMappers(packageName)
+        note right of Config
+          批量扫描包下的接口
+          使用注解解析
+        end note
+    end
+
+    alt resource方式
+        XMLConfigBuilder -> XMLMapperBuilder: new XMLMapperBuilder(inputStream, config, resource)
+        note right of XMLMapperBuilder
+          加载指定的Mapper.xml文件
+        end note
+        activate XMLMapperBuilder
+
+        XMLMapperBuilder -> XMLMapperBuilder: parse()
+        note right of XMLMapperBuilder
+          开始解析Mapper.xml
+        end note
+
+        alt 解析cache
+            XMLMapperBuilder -> Config: addCache(cache)
+            note right of Config
+              创建Cache对象
+              配置二级缓存
+            end note
+        end
+
+        alt 解析resultMap
+            XMLMapperBuilder -> Config: addResultMap(resultMap)
+            note right of Config
+              添加结果映射
+              供SQL语句引用
+            end note
+        end
+
+        alt 解析SQL语句
+            XMLMapperBuilder -> Config: addMappedStatement(mappedStatement)
+            note right of Config
+              添加MappedStatement
+              包含SQL和映射配置
+            end note
+        end
+
+        XMLMapperBuilder --> XMLConfigBuilder: void
+        deactivate XMLMapperBuilder
+    end
+end
+
+XMLConfigBuilder -> Config: (设置完成所有配置)
+Config --> XMLConfigBuilder: configuration
+
+XMLConfigBuilder -> Builder: configuration
+Builder --> User: SqlSessionFactory
+
+deactivate XMLConfigBuilder
+
+== 2. 获取SqlSession阶段 ==
+
+note over User, Builder
+  ★ SqlSessionFactory.openSession()
+  创建SqlSession实例
+end note
+
+User -> Builder: openSession()
+note right of Builder
+  从SqlSessionFactory
+  获取SqlSession
+end note
+
+Builder -> Builder: openSessionFromDataSource(executorType, transactionIsolationLevel, autoCommit)
+Builder -> Config: getExecutor(executorType)
+note right of Config
+  根据执行器类型
+  创建对应的Executor
+end note
+
+alt ExecutorType.SIMPLE
+    Config -> Executor: new SimpleExecutor(transaction)
+    note right of Executor
+      简单执行器
+      每次执行创建新Statement
+    end note
+else ExecutorType.REUSE
+    Config -> Executor: new ReuseExecutor(transaction)
+    note right of Executor
+      重用执行器
+      缓存Statement对象
+    end note
+else ExecutorType.BATCH
+    Config -> Executor: new BatchExecutor(transaction)
+    note right of Executor
+      批处理执行器
+      支持批量操作
+    end note
+end
+
+Executor --> Config: executor
+Config -> CachingExecutor: new CachingExecutor(executor)
+note right of CachingExec
+  用CachingExecutor包装
+  添加二级缓存功能
+end note
+CachingExec --> Config: executor
+
+Config --> Builder: executor
+
+Builder -> Builder: new DefaultSqlSession(config, executor, autoCommit)
+note right of Builder
+  创建DefaultSqlSession
+  包装Configuration和Executor
+end note
+
+Builder --> User: SqlSession
+
+note over User
+  整体流程:
+  1. SqlSessionFactoryBuilder.build()
+     → XMLConfigBuilder解析配置
+     → Configuration组装所有信息
+  2. SqlSessionFactory.openSession()
+     → 创建Executor
+     → 创建SqlSession
+  3. SqlSession.getMapper()
+     → 创建Mapper代理对象
+end note
+
+@enduml

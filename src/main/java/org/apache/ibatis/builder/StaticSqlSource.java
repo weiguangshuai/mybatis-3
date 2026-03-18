@@ -23,24 +23,48 @@ import org.apache.ibatis.mapping.SqlSource;
 import org.apache.ibatis.session.Configuration;
 
 /**
+ * 表示静态 SQL 语句的 SqlSource 实现。
+ *
  * @author Clinton Begin
  */
 public class StaticSqlSource implements SqlSource {
 
+  /** SQL 语句文本 */
   private final String sql;
+  /** 参数映射列表 */
   private final List<ParameterMapping> parameterMappings;
+  /** MyBatis 配置对象 */
   private final Configuration configuration;
 
+  /**
+   * 构造静态 SQL 源（无参数映射）。
+   *
+   * @param configuration MyBatis 配置对象
+   * @param sql SQL 语句文本
+   */
   public StaticSqlSource(Configuration configuration, String sql) {
     this(configuration, sql, null);
   }
 
+  /**
+   * 构造静态 SQL 源。
+   *
+   * @param configuration MyBatis 配置对象
+   * @param sql SQL 语句文本
+   * @param parameterMappings 参数映射列表，可为 null
+   */
   public StaticSqlSource(Configuration configuration, String sql, List<ParameterMapping> parameterMappings) {
     this.sql = sql;
     this.parameterMappings = parameterMappings;
     this.configuration = configuration;
   }
 
+  /**
+   * 获取绑定后的 SQL 对象。
+   *
+   * @param parameterObject 参数对象
+   * @return 绑定好的 SQL 对象
+   */
   @Override
   public BoundSql getBoundSql(Object parameterObject) {
     return new BoundSql(configuration, sql, parameterMappings, parameterObject);

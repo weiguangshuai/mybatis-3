@@ -50,25 +50,48 @@ import org.apache.ibatis.type.JdbcType;
 import org.apache.ibatis.type.TypeHandler;
 
 /**
+ * Mapper构建助手类，负责解析和构建Mapper中的SQL语句、结果映射、缓存等配置。
+ *
  * @author Clinton Begin
  */
 public class MapperBuilderAssistant extends BaseBuilder {
 
+  /** 当前Mapper的命名空间 */
   private String currentNamespace;
+  /** 映射文件资源路径，用于错误定位 */
   private final String resource;
+  /** 当前Mapper对应的二级缓存 */
   private Cache currentCache;
+  /** 是否存在未解析的缓存引用，用于处理循环依赖问题 */
   private boolean unresolvedCacheRef; // issue #676
 
+  /**
+   * 构造MapperBuilderAssistant。
+   *
+   * @param configuration MyBatis全局配置对象
+   * @param resource 映射文件资源路径
+   */
   public MapperBuilderAssistant(Configuration configuration, String resource) {
     super(configuration);
     ErrorContext.instance().resource(resource);
     this.resource = resource;
   }
 
+  /**
+   * 获取当前Mapper的命名空间。
+   *
+   * @return 当前命名空间
+   */
   public String getCurrentNamespace() {
     return currentNamespace;
   }
 
+  /**
+   * 设置当前Mapper的命名空间，并进行有效性校验。
+   *
+   * @param currentNamespace 命名空间值
+   * @throws BuilderException 如果命名空间为空或与已有命名空间不匹配
+   */
   public void setCurrentNamespace(String currentNamespace) {
     if (currentNamespace == null) {
       throw new BuilderException("The mapper element requires a namespace attribute to be specified.");
@@ -82,20 +105,29 @@ public class MapperBuilderAssistant extends BaseBuilder {
     this.currentNamespace = currentNamespace;
   }
 
+  /**
+   * 为指定名称应用当前命名空间前缀。
+   *
+   * @param base 基础名称
+   * @param isReference 是否为引用类型（引用其他命名空间的元素）
+   * @return 带有命名空间前缀的名称
+   * @throws BuilderException 名称中包含非法点号
+   */
   public String applyCurrentNamespace(String base, boolean isReference) {
     if (base == null) {
       return null;
     }
     if (isReference) {
-      // is it qualified with any namespace yet?
+      // 引用类型：检查是否已包含命名空间前缀
       if (base.contains(".")) {
         return base;
       }
     } else {
-      // is it qualified with this namespace yet?
+      // 非引用类型：检查是否已应用当前命名空间
       if (base.startsWith(currentNamespace + ".")) {
         return base;
       }
+      // 非引用类型不允许使用点号
       if (base.contains(".")) {
         throw new BuilderException("Dots are not allowed in element names, please remove it from " + base);
       }
@@ -103,6 +135,13 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return currentNamespace + "." + base;
   }
 
+  /**
+   * 引用指定命名空间的缓存。
+   *
+   * @param namespace 要引用的缓存所属Mapper的命名空间
+   * @return 被引用的缓存对象
+   * @throws BuilderException 命名空间为空或缓存不存在
+   */
   public Cache useCacheRef(String namespace) {
     if (namespace == null) {
       throw new BuilderException("cache-ref element requires a namespace attribute.");
@@ -121,7 +160,19 @@ public class MapperBuilderAssistant extends BaseBuilder {
     }
   }
 
-  public Cache useNewCache(Class<? extends Cache> typeClass,
+  /**
+   * 创建新的二级缓存并设置为当前缓存。
+   *
+   * @param typeCache 缓存实现类
+   * @param evictionClass 缓存淘汰策略类
+   * @param flushInterval 缓存刷新间隔（毫秒）
+   * @param size 缓存最大容量
+   * @param readWrite 是否支持读写
+   * @param blocking 是否使用阻塞缓存
+   * @param props 缓存额外配置属性
+   * @return 新创建的缓存对象
+   */
+  public Cache useNewCache(Class<? extends Cache> typeCache,
       Class<? extends Cache> evictionClass,
       Long flushInterval,
       Integer size,
@@ -129,7 +180,7 @@ public class MapperBuilderAssistant extends BaseBuilder {
       boolean blocking,
       Properties props) {
     Cache cache = new CacheBuilder(currentNamespace)
-        .implementation(valueOrDefault(typeClass, PerpetualCache.class))
+        .implementation(valueOrDefault(typeCache, PerpetualCache.class))
         .addDecorator(valueOrDefault(evictionClass, LruCache.class))
         .clearInterval(flushInterval)
         .size(size)
@@ -142,6 +193,14 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return cache;
   }
 
+  /**
+   * 添加参数映射集合。
+   *
+   * @param id 参数映射ID
+   * @param parameterClass 参数类型
+   * @param parameterMappings 参数映射列表
+   * @return 构建好的ParameterMap对象
+   */
   public ParameterMap addParameterMap(String id, Class<?> parameterClass, List<ParameterMapping> parameterMappings) {
     id = applyCurrentNamespace(id, false);
     ParameterMap parameterMap = new ParameterMap.Builder(configuration, id, parameterClass, parameterMappings).build();
@@ -149,6 +208,19 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return parameterMap;
   }
 
+  /**
+   * 构建参数映射对象。
+   *
+   * @param parameterType 参数类型
+   * @param property 参数属性名
+   * @param javaType Java类型
+   * @param jdbcType JDBC类型
+   * @param resultMap 引用结果映射ID
+   * @param parameterMode 参数模式（IN/OUT/INOUT）
+   * @param typeHandler 类型处理器
+   * @param numericScale 数值精度
+   * @return 构建好的ParameterMapping对象
+   */
   public ParameterMapping buildParameterMapping(
       Class<?> parameterType,
       String property,
@@ -160,7 +232,7 @@ public class MapperBuilderAssistant extends BaseBuilder {
       Integer numericScale) {
     resultMap = applyCurrentNamespace(resultMap, true);
 
-    // Class parameterType = parameterMapBuilder.type();
+    // 解析Java类型，若未指定则根据属性推断
     Class<?> javaTypeClass = resolveParameterJavaType(parameterType, property, javaType, jdbcType);
     TypeHandler<?> typeHandlerInstance = resolveTypeHandler(javaTypeClass, typeHandler);
 
@@ -173,6 +245,18 @@ public class MapperBuilderAssistant extends BaseBuilder {
         .build();
   }
 
+  /**
+   * 添加结果映射集合。
+   *
+   * @param id 结果映射ID
+   * @param type 实体类型
+   * @param extend 父结果映射ID
+   * @param discriminator 鉴别器
+   * @param resultMappings 结果映射列表
+   * @param autoMapping 是否自动映射
+   * @return 构建好的ResultMap对象
+   * @throws IncompleteElementException 父结果映射不存在
+   */
   public ResultMap addResultMap(
       String id,
       Class<?> type,
@@ -183,6 +267,7 @@ public class MapperBuilderAssistant extends BaseBuilder {
     id = applyCurrentNamespace(id, false);
     extend = applyCurrentNamespace(extend, true);
 
+    // 处理继承：合并父ResultMap的映射
     if (extend != null) {
       if (!configuration.hasResultMap(extend)) {
         throw new IncompleteElementException("Could not find a parent resultmap with id '" + extend + "'");
@@ -190,7 +275,7 @@ public class MapperBuilderAssistant extends BaseBuilder {
       ResultMap resultMap = configuration.getResultMap(extend);
       List<ResultMapping> extendedResultMappings = new ArrayList<>(resultMap.getResultMappings());
       extendedResultMappings.removeAll(resultMappings);
-      // Remove parent constructor if this resultMap declares a constructor.
+      // 若当前ResultMap声明了构造函数，则移除父类的构造函数映射
       boolean declaresConstructor = false;
       for (ResultMapping resultMapping : resultMappings) {
         if (resultMapping.getFlags().contains(ResultFlag.CONSTRUCTOR)) {
@@ -210,6 +295,17 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return resultMap;
   }
 
+  /**
+   * 构建鉴别器对象。
+   *
+   * @param resultType 实体类型
+   * @param column 鉴别器列名
+   * @param javaType Java类型
+   * @param jdbcType JDBC类型
+   * @param typeHandler 类型处理器
+   * @param discriminatorMap 鉴别器值到结果映射的映射
+   * @return 构建好的Discriminator对象
+   */
   public Discriminator buildDiscriminator(
       Class<?> resultType,
       String column,
@@ -232,6 +328,7 @@ public class MapperBuilderAssistant extends BaseBuilder {
         null,
         null,
         false);
+    // 为鉴别器映射中的应用命名空间
     Map<String, String> namespaceDiscriminatorMap = new HashMap<>();
     for (Map.Entry<String, String> e : discriminatorMap.entrySet()) {
       String resultMap = e.getValue();
@@ -241,6 +338,32 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return new Discriminator.Builder(configuration, resultMapping, namespaceDiscriminatorMap).build();
   }
 
+  /**
+   * 添加MappedStatement（SQL语句映射）。
+   *
+   * @param id 语句ID
+   * @param sqlSource SQL来源
+   * @param statementType 语句类型（PREPARED/STATEMENT/CALLABLE）
+   * @param sqlCommandType SQL命令类型（SELECT/INSERT/UPDATE/DELETE）
+   * @param fetchSize 抓取数量
+   * @param timeout 超时时间
+   * @param parameterMap 参数映射ID
+   * @param parameterType 参数类型
+   * @param resultMap 结果映射ID
+   * @param resultType 结果类型
+   * @param resultSetType 结果集类型
+   * @param flushCache 是否刷新缓存
+   * @param useCache 是否使用缓存
+   * @param resultOrdered 结果是否有序
+   * @param keyGenerator 主键生成器
+   * @param keyProperty 主键属性
+   * @param keyColumn 主键列
+   * @param databaseId 数据库ID
+   * @param lang 语言驱动
+   * @param resultSets 结果集
+   * @return 构建好的MappedStatement对象
+   * @throws IncompleteElementException 存在未解析的缓存引用
+   */
   public MappedStatement addMappedStatement(
       String id,
       SqlSource sqlSource,
@@ -287,6 +410,7 @@ public class MapperBuilderAssistant extends BaseBuilder {
         .useCache(useCache)
         .cache(currentCache);
 
+    // 处理参数映射
     ParameterMap statementParameterMap = getStatementParameterMap(parameterMap, parameterType, id);
     if (statementParameterMap != null) {
       statementBuilder.parameterMap(statementParameterMap);
@@ -352,10 +476,27 @@ public class MapperBuilderAssistant extends BaseBuilder {
       keyColumn, databaseId, lang, null);
   }
 
+  /**
+   * 获取值，若为空则返回默认值。
+   *
+   * @param value 原值
+   * @param defaultValue 默认值
+   * @param <T> 类型参数
+   * @return 值或默认值
+   */
   private <T> T valueOrDefault(T value, T defaultValue) {
     return value == null ? defaultValue : value;
   }
 
+  /**
+   * 获取语句参数映射，不存在时创建内联参数映射。
+   *
+   * @param parameterMapName 参数映射名称
+   * @param parameterTypeClass 参数类型
+   * @param statementId 语句ID
+   * @return ParameterMap对象
+   * @throws IncompleteElementException 指定的参数映射不存在
+   */
   private ParameterMap getStatementParameterMap(
       String parameterMapName,
       Class<?> parameterTypeClass,
@@ -363,12 +504,14 @@ public class MapperBuilderAssistant extends BaseBuilder {
     parameterMapName = applyCurrentNamespace(parameterMapName, true);
     ParameterMap parameterMap = null;
     if (parameterMapName != null) {
+      // 使用已定义的参数映射
       try {
         parameterMap = configuration.getParameterMap(parameterMapName);
       } catch (IllegalArgumentException e) {
         throw new IncompleteElementException("Could not find parameter map " + parameterMapName, e);
       }
     } else if (parameterTypeClass != null) {
+      // 创建内联参数映射
       List<ParameterMapping> parameterMappings = new ArrayList<>();
       parameterMap = new ParameterMap.Builder(
           configuration,
@@ -379,6 +522,15 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return parameterMap;
   }
 
+  /**
+   * 获取语句的结果映射列表，不存在时创建内联结果映射。
+   *
+   * @param resultMap 结果映射ID（多个用逗号分隔）
+   * @param resultType 结果类型
+   * @param statementId 语句ID
+   * @return ResultMap列表
+   * @throws IncompleteElementException 指定的结果映射不存在
+   */
   private List<ResultMap> getStatementResultMaps(
       String resultMap,
       Class<?> resultType,
@@ -387,6 +539,7 @@ public class MapperBuilderAssistant extends BaseBuilder {
 
     List<ResultMap> resultMaps = new ArrayList<>();
     if (resultMap != null) {
+      // 解析多个结果映射（逗号分隔）
       String[] resultMapNames = resultMap.split(",");
       for (String resultMapName : resultMapNames) {
         try {
@@ -396,6 +549,7 @@ public class MapperBuilderAssistant extends BaseBuilder {
         }
       }
     } else if (resultType != null) {
+      // 创建内联结果映射
       ResultMap inlineResultMap = new ResultMap.Builder(
           configuration,
           statementId + "-Inline",
@@ -407,6 +561,25 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return resultMaps;
   }
 
+  /**
+   * 构建结果映射对象。
+   *
+   * @param resultType 实体类型
+   * @param property 属性名
+   * @param column 列名
+   * @param javaType Java类型
+   * @param jdbcType JDBC类型
+   * @param nestedSelect 嵌套查询SQL
+   * @param nestedResultMap 嵌套结果映射ID
+   * @param notNullColumn 非空列（多个用逗号分隔）
+   * @param columnPrefix 列前缀
+   * @param typeHandler 类型处理器
+   * @param flags 标志列表
+   * @param resultSet 结果集名称
+   * @param foreignColumn 外键列
+   * @param lazy 是否延迟加载
+   * @return 构建好的ResultMapping对象
+   */
   public ResultMapping buildResultMapping(
       Class<?> resultType,
       String property,
@@ -424,6 +597,7 @@ public class MapperBuilderAssistant extends BaseBuilder {
       boolean lazy) {
     Class<?> javaTypeClass = resolveResultJavaType(resultType, property, javaType);
     TypeHandler<?> typeHandlerInstance = resolveTypeHandler(javaTypeClass, typeHandler);
+    // 处理复合列名（嵌套查询或外键列时需要）
     List<ResultMapping> composites;
     if ((nestedSelect == null || nestedSelect.isEmpty()) && (foreignColumn == null || foreignColumn.isEmpty())) {
       composites = Collections.emptyList();
@@ -493,6 +667,12 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return configuration.getLanguageDriver(langClass);
   }
 
+  /**
+   * 解析多个列名（逗号分隔）。
+   *
+   * @param columnName 列名（可能包含逗号、空格、大括号）
+   * @return 列名集合
+   */
   private Set<String> parseMultipleColumnNames(String columnName) {
     Set<String> columns = new HashSet<>();
     if (columnName != null) {
@@ -509,6 +689,12 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return columns;
   }
 
+  /**
+   * 解析复合列名（属性=列名 格式）。
+   *
+   * @param columnName 复合列名（如 "property=column" 或 "property,column"）
+   * @return 复合ResultMapping列表
+   */
   private List<ResultMapping> parseCompositeColumnName(String columnName) {
     List<ResultMapping> composites = new ArrayList<>();
     if (columnName != null && (columnName.indexOf('=') > -1 || columnName.indexOf(',') > -1)) {
@@ -524,13 +710,22 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return composites;
   }
 
+  /**
+   * 解析结果映射的Java类型，未指定时从实体类属性推断。
+   *
+   * @param resultType 实体类型
+   * @param property 属性名
+   * @param javaType 指定的Java类型
+   * @return 解析后的Java类型
+   */
   private Class<?> resolveResultJavaType(Class<?> resultType, String property, Class<?> javaType) {
     if (javaType == null && property != null) {
       try {
+        // 通过反射获取setter方法参数类型
         MetaClass metaResultType = MetaClass.forClass(resultType, configuration.getReflectorFactory());
         javaType = metaResultType.getSetterType(property);
       } catch (Exception e) {
-        // ignore, following null check statement will deal with the situation
+        // 忽略异常，后续null检查会处理
       }
     }
     if (javaType == null) {
@@ -539,13 +734,25 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return javaType;
   }
 
+  /**
+   * 解析参数映射的Java类型，未指定时根据参数类型和属性推断。
+   *
+   * @param resultType 参数类型
+   * @param property 属性名
+   * @param javaType 指定的Java类型
+   * @param jdbcType JDBC类型
+   * @return 解析后的Java类型
+   */
   private Class<?> resolveParameterJavaType(Class<?> resultType, String property, Class<?> javaType, JdbcType jdbcType) {
     if (javaType == null) {
       if (JdbcType.CURSOR.equals(jdbcType)) {
+        // 游标类型返回ResultSet
         javaType = java.sql.ResultSet.class;
       } else if (Map.class.isAssignableFrom(resultType)) {
+        // Map类型默认使用Object
         javaType = Object.class;
       } else {
+        // 通过反射获取getter方法返回类型
         MetaClass metaResultType = MetaClass.forClass(resultType, configuration.getReflectorFactory());
         javaType = metaResultType.getGetterType(property);
       }

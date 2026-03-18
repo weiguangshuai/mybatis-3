@@ -21,14 +21,27 @@ import org.apache.ibatis.cache.Cache;
  * @author Clinton Begin
  */
 public class CacheRefResolver {
+  /** Mapper构建助手，用于执行缓存引用解析 */
   private final MapperBuilderAssistant assistant;
+  /** 引用的缓存命名空间，指定使用哪个Mapper的二级缓存 */
   private final String cacheRefNamespace;
 
+  /**
+   * 创建缓存引用解析器。
+   *
+   * @param assistant Mapper构建助手
+   * @param cacheRefNamespace 引用的缓存命名空间
+   */
   public CacheRefResolver(MapperBuilderAssistant assistant, String cacheRefNamespace) {
     this.assistant = assistant;
     this.cacheRefNamespace = cacheRefNamespace;
   }
 
+  /**
+   * 解析并返回缓存引用。
+   *
+   * @return 引用命名空间对应的二级缓存实例
+   */
   public Cache resolveCacheRef() {
     return assistant.useCacheRef(cacheRefNamespace);
   }

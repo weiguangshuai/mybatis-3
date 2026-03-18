@@ -22,17 +22,37 @@ import org.apache.ibatis.mapping.ResultMap;
 import org.apache.ibatis.mapping.ResultMapping;
 
 /**
+ * ResultMap 解析器，负责构建并注册 ResultMap 对象。
+ *
  * @author Eduardo Macarron
  */
 public class ResultMapResolver {
+  /** Mapper 构建助手，用于执行 ResultMap 的添加操作 */
   private final MapperBuilderAssistant assistant;
+  /** ResultMap 的唯一标识符 */
   private final String id;
+  /** 映射的目标 Java 类型 */
   private final Class<?> type;
+  /** 继承的父 ResultMap id */
   private final String extend;
+  /** 鉴别器，用于多结果映射 */
   private final Discriminator discriminator;
+  /** 结果属性与列的映射列表 */
   private final List<ResultMapping> resultMappings;
+  /** 是否启用自动映射 */
   private final Boolean autoMapping;
 
+  /**
+   * 构造 ResultMap 解析器。
+   *
+   * @param assistant     Mapper 构建助手
+   * @param id            ResultMap 标识符
+   * @param type          映射的目标类型
+   * @param extend        继承的父 ResultMap
+   * @param discriminator 鉴别器
+   * @param resultMappings 结果映射列表
+   * @param autoMapping   自动映射开关
+   */
   public ResultMapResolver(MapperBuilderAssistant assistant, String id, Class<?> type, String extend, Discriminator discriminator, List<ResultMapping> resultMappings, Boolean autoMapping) {
     this.assistant = assistant;
     this.id = id;
@@ -43,7 +63,13 @@ public class ResultMapResolver {
     this.autoMapping = autoMapping;
   }
 
+  /**
+   * 解析并添加 ResultMap 到 MapperBuilderAssistant。
+   *
+   * @return 构建完成的 ResultMap 对象
+   */
   public ResultMap resolve() {
+    // 委托给助手完成 ResultMap 的注册
     return assistant.addResultMap(this.id, this.type, this.extend, this.discriminator, this.resultMappings, this.autoMapping);
   }
 
