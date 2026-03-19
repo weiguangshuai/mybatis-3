@@ -44,10 +44,9 @@ public class ParamNameResolver {
 
   /**
    * <p>
-   * The key is the index and the value is the name of the parameter.<br />
-   * The name is obtained from {@link Param} if specified. When {@link Param} is not specified,
-   * the parameter index is used. Note that this index could be different from the actual index
-   * when the method has special parameters (i.e. {@link RowBounds} or {@link ResultHandler}).
+   * 参数索引与参数名称的映射（按索引排序）。<br />
+   * 参数名取自 @Param 注解值；若未指定，则使用索引值。注意当方法包含特殊参数
+   *（RowBounds 或 ResultHandler）时，索引可能与实际位置不一致。
    * </p>
    * <ul>
    * <li>aMethod(@Param("M") int a, @Param("N") int b) -&gt; {{0, "M"}, {1, "N"}}</li>
@@ -101,20 +100,32 @@ public class ParamNameResolver {
     names = Collections.unmodifiableSortedMap(map);
   }
 
-  /** 获取方法的实际参数名（依赖编译参数） */
+  /**
+   * 通过 JDK 编译参数获取方法的实际参数名
+   *
+   * @param method 方法
+   * @param paramIndex 参数索引
+   * @return 实际参数名，获取失败返回 null
+   */
   private String getActualParamName(Method method, int paramIndex) {
     return ParamNameUtil.getParamNames(method).get(paramIndex);
   }
 
-  /** 判断是否为特殊参数（RowBounds 或 ResultHandler），这些参数不参与名称解析 */
+  /**
+   * 判断参数类型是否为特殊参数（RowBounds 或 ResultHandler）
+   * 特殊参数不参与名称解析，会在构造方法中被跳过
+   *
+   * @param clazz 参数类型
+   * @return 是否为特殊参数
+   */
   private static boolean isSpecialParameter(Class<?> clazz) {
     return RowBounds.class.isAssignableFrom(clazz) || ResultHandler.class.isAssignableFrom(clazz);
   }
 
   /**
-   * Returns parameter names referenced by SQL providers.
+   * 获取方法参数名称列表，供 SQL provider 使用
    *
-   * @return the names
+   * @return 参数名称数组
    */
   public String[] getNames() {
     return names.values().toArray(new String[0]);
@@ -122,15 +133,12 @@ public class ParamNameResolver {
 
   /**
    * <p>
-   * A single non-special parameter is returned without a name.
-   * Multiple parameters are named using the naming rule.
-   * In addition to the default names, this method also adds the generic names (param1, param2,
-   * ...).
+   * 将方法参数转换为命名参数。单参数无特殊参数时直接返回，多参数时构建 ParamMap。
+   * 除了原始参数名，还会添加 param1, param2 等通用参数名。
    * </p>
    *
-   * @param args
-   *          the args
-   * @return the named params
+   * @param args 方法参数数组
+   * @return 命名参数对象，单参数可能返回集合/数组本身，多参数返回 ParamMap
    */
   public Object getNamedParams(Object[] args) {
     final int paramCount = names.size();
@@ -157,12 +165,12 @@ public class ParamNameResolver {
   }
 
   /**
-   * Wrap to a {@link ParamMap} if object is {@link Collection} or array.
+   * 如果参数是 Collection 或数组，则包装为 ParamMap；否则直接返回原对象。
+   * 包装时会添加 "collection"/"list"/"array" 等标准 key，并可根据实际参数名添加别名。
    *
-   * @param object a parameter object
-   * @param actualParamName an actual parameter name
-   *                        (If specify a name, set an object to {@link ParamMap} with specified name)
-   * @return a {@link ParamMap}
+   * @param object 参数对象
+   * @param actualParamName 实际参数名（来自 @Param 或 JDK 参数名）
+   * @return 包装后的 ParamMap 或原对象
    * @since 3.5.5
    */
   public static Object wrapToMapIfCollection(Object object, String actualParamName) {

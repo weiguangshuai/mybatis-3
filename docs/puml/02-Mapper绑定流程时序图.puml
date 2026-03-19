@@ -69,10 +69,11 @@ alt 调用Object方法
     MapperProxy --> User: result
 
 else 调用Mapper接口方法
-    MapperProxy -> MapperProxy: cachedMapperMethod(method)
+    MapperProxy -> MapperProxy: cachedInvoker(method)
     note right of MapperProxy
       从methodCache缓存中
-      获取MapperMethod
+      获取MapperMethodInvoker
+      使用MapUtil.computeIfAbsent()自动缓存
       避免重复创建
     end note
 
@@ -85,10 +86,9 @@ else 调用Mapper接口方法
           - 创建ParamNameResolver
         end note
         MapperMethod --> MapperProxy: MapperMethod
-        MapperProxy -> MapperProxy: methodCache.put(method, mapperMethod)
         note right of MapperProxy
-          放入缓存
-          下次直接使用
+          使用MapUtil.computeIfAbsent()
+          自动放入缓存
         end note
     end
 
@@ -100,13 +100,13 @@ else 调用Mapper接口方法
     activate MapperMethod
 
     alt SELECT操作
-        MapperMethod -> SqlSession: selectOne/selectList/selectMap/select
+        MapperMethod -> SqlSession: selectOne/selectList/selectMap/select/executeForCursor
         note right of SqlSession
           根据返回类型选择
           - selectOne: 返回单条
           - selectList: 返回列表
           - selectMap: 返回Map
-          - select: 自定义处理
+          - executeForCursor: 返回Cursor
         end note
         activate SqlSession
 
@@ -129,16 +129,12 @@ else 调用Mapper接口方法
         deactivate CachingExec
 
         SqlSession --> MapperMethod: results
+        note right of MapperMethod
+          结果转换在executeForMany/executeForMap/executeForCursor
+          内部自动完成
+        end note
         deactivate SqlSession
 
-        MapperMethod -> MapperMethod: convertToReturnType(results)
-        note right of MapperMethod
-          根据返回类型转换结果:
-          - 方法返回void: 忽略
-          - 方法返回List: 直接返回
-          - 方法返回单对象: 取第一个
-          - 方法返回Map: 转换为Map
-        end note
         MapperMethod --> MapperProxy: return value
 
     else INSERT操作

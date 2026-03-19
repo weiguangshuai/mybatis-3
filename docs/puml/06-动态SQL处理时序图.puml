@@ -6,11 +6,11 @@ participant ":SqlSource" as SqlSource
 participant ":MixedSqlNode" as MixedSqlNode
 participant ":SqlNode" as SqlNode
 participant ":DynamicContext" as DynamicContext
-participant ":BindingContext" as BindingContext
+participant ":XMLScriptBuilder" as XMLScriptBuilder
 participant ":ExpressionEvaluator" as Evaluator
 participant ":OgnlCache" as OgnlCache
 participant ":IfSqlNode" as IfSqlNode
-participant ":ForeachSqlNode" as ForeachSqlNode
+participant ":ForEachSqlNode" as ForEachSqlNode
 participant ":WhereSqlNode" as WhereSqlNode
 participant ":SetSqlNode" as SetSqlNode
 participant ":TrimSqlNode" as TrimSqlNode
@@ -28,14 +28,14 @@ end note
 
 == 1. 动态SQL解析阶段（初始化时）==
 
-SqlSourceBuilder -> SqlSourceBuilder: parse(dynamicContext, parameterType, lang)
-note right of SqlSourceBuilder
+XMLScriptBuilder -> XMLScriptBuilder: parseScriptNode(node)
+note right of XMLScriptBuilder
   解析XML中的SQL片段
   构建SqlSource对象
 end note
 
 alt 动态SQL（包含${}或动态标签）
-    SqlSourceBuilder -> MixedSqlNode: new MixedSqlNode(contents)
+    XMLScriptBuilder -> MixedSqlNode: new MixedSqlNode(contents)
     note right of MixedSqlNode
       创建MixedSqlNode
       包含所有SQL节点
@@ -44,34 +44,34 @@ alt 动态SQL（包含${}或动态标签）
 
     loop for each content (SqlNode)
         alt if标签
-            SqlSourceBuilder -> IfSqlNode: new IfSqlNode(mixedSqlNode, test)
+            XMLScriptBuilder -> IfSqlNode: new IfSqlNode(mixedSqlNode, test)
         else foreach标签
-            SqlSourceBuilder -> ForeachSqlNode: new ForeachSqlNode(mixedSqlNode, collection, item, ...)
+            XMLScriptBuilder -> ForEachSqlNode: new ForEachSqlNode(mixedSqlNode, collection, item, ...)
         else where标签
-            SqlSourceBuilder -> WhereSqlNode: new WhereSqlNode(mixedSqlNode)
+            XMLScriptBuilder -> WhereSqlNode: new WhereSqlNode(mixedSqlNode)
         else set标签
-            SqlSourceBuilder -> SetSqlNode: new SetSqlNode(mixedSqlNode)
+            XMLScriptBuilder -> SetSqlNode: new SetSqlNode(mixedSqlNode)
         else trim标签
-            SqlSourceBuilder -> TrimSqlNode: new TrimSqlNode(mixedSqlNode, prefix, prefixOverrides, ...)
+            XMLScriptBuilder -> TrimSqlNode: new TrimSqlNode(mixedSqlNode, prefix, prefixOverrides, ...)
         else 文本节点
-            SqlSourceBuilder -> TextSqlNode: new TextSqlNode(sqlText)
+            XMLScriptBuilder -> TextSqlNode: new TextSqlNode(sqlText)
         end
     end
 
-    SqlSourceBuilder -> SqlSource: DynamicSqlSource
+    XMLScriptBuilder -> SqlSource: DynamicSqlSource
     note right of SqlSource
       创建动态SQL源
       运行时解析
     end note
-    SqlSourceBuilder --> SqlSource: DynamicSqlSource
+    XMLScriptBuilder --> SqlSource: DynamicSqlSource
 
 else 静态SQL（无${}和动态标签）
-    SqlSourceBuilder -> SqlSource: RawSqlSource
+    XMLScriptBuilder -> SqlSource: RawSqlSource
     note right of SqlSource
       创建静态SQL源
       直接使用无需解析
     end note
-    SqlSourceBuilder --> SqlSource: RawSqlSource
+    XMLScriptBuilder --> SqlSource: RawSqlSource
 end
 
 == 2. 动态SQL执行阶段（运行时）==
@@ -93,14 +93,9 @@ SqlSource -> DynamicContext: new DynamicContext(configuration, parameterObject)
 note right of DynamicContext
   创建动态上下文
   传入参数对象
+  内部使用BindingContext包装参数
 end note
 activate DynamicContext
-
-DynamicContext -> BindingContext: new BindingContext(configuration, paramObject)
-note right of BindingContext
-  包装参数对象
-  用于OGNL表达式求值
-end note
 
 SqlSource -> MixedSqlNode: applyAll(dynamicContext)
 note right of MixedSqlNode
@@ -118,8 +113,8 @@ loop for each SqlNode in contents
 
     alt IfSqlNode - if条件判断
         SqlNode -> Evaluator: evaluateBoolean(test, parameterObject)
-        Evaluator -> OgnlCache: parseExpression(test)
-        OgnlCache --> Evaluator: expression
+        Evaluator -> OgnlCache: getValue(test, parameterObject)
+        OgnlCache --> Evaluator: value
         Evaluator --> SqlNode: true/false
 
         alt 条件为true
@@ -131,7 +126,7 @@ loop for each SqlNode in contents
         end
     end
 
-    alt ForeachSqlNode - foreach循环
+    alt ForEachSqlNode - foreach循环
         SqlNode -> SqlNode: apply(context)
         SqlNode -> Evaluator: evaluateIterable(collection)
         note right of SqlNode
@@ -163,7 +158,7 @@ loop for each SqlNode in contents
         SqlNode -> SqlNode: apply(context)
 
         alt 包含${}变量
-            SqlNode -> OgnlCache: evaluateExpression(text)
+            SqlNode -> OgnlCache: getValue(expression, context.bindings)
             OgnlCache --> SqlNode: resolvedValue
             SqlNode -> DynamicContext: appendSql(resolvedValue)
         else 纯文本

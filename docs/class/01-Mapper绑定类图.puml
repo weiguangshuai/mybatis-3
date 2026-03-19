@@ -1,6 +1,6 @@
 @startuml MyBatis-Mapper绑定类图
 title MyBatis Mapper 绑定类图
-left to right direction
+top to bottom direction
 skinparam classAttributeIconSize 0
 
 class MapperRegistry {
@@ -20,7 +20,6 @@ class MapperProxyFactory<T> {
 }
 
 class MapperProxy<T> {
-    -serialVersionUID: long
     -sqlSession: SqlSession
     -mapperInterface: Class<T>
     -methodCache: Map<Method, MapperMethodInvoker>
@@ -30,11 +29,62 @@ class MapperProxy<T> {
 }
 
 class MapperMethod {
-    -command: SqlCommand
-    -method: MethodSignature
     +MapperMethod(mapperInterface: Class<?>, method: Method, config: Configuration)
     +execute(sqlSession: SqlSession, args: Object[]): Object
     -rowCountResult(rowCount: int): Object
+}
+
+interface MapperMethodInvoker {
+    +invoke(proxy: Object, method: Method, args: Object[], sqlSession: SqlSession): Object
+}
+
+class PlainMethodInvoker {
+    -mapperMethod: MapperMethod
+    +PlainMethodInvoker(mapperMethod: MapperMethod)
+    +invoke(proxy: Object, method: Method, args: Object[], sqlSession: SqlSession): Object
+}
+
+class DefaultMethodInvoker {
+    -methodHandle: MethodHandle
+    +DefaultMethodInvoker(methodHandle: MethodHandle)
+    +invoke(proxy: Object, method: Method, args: Object[], sqlSession: SqlSession): Object
+}
+
+class SqlCommand {
+    -name: String
+    -type: SqlCommandType
+    +SqlCommand(configuration: Configuration, mapperInterface: Class<?>, method: Method)
+    +getName(): String
+    +getType(): SqlCommandType
+}
+
+class MethodSignature {
+    -returnsMany: boolean
+    -returnsMap: boolean
+    -returnsVoid: boolean
+    -returnsCursor: boolean
+    -returnsOptional: boolean
+    -returnType: Class<?>
+    -mapKey: String
+    -resultHandlerIndex: Integer
+    -rowBoundsIndex: Integer
+    +MethodSignature(configuration: Configuration, mapperInterface: Class<?>, method: Method)
+    +convertArgsToSqlCommandParam(args: Object[]): Object
+    +hasRowBounds(): boolean
+    +extractRowBounds(args: Object[]): RowBounds
+    +hasResultHandler(): boolean
+    +extractResultHandler(args: Object[]): ResultHandler
+    +getReturnType(): Class<?>
+    +returnsMany(): boolean
+    +returnsMap(): boolean
+    +returnsVoid(): boolean
+    +returnsCursor(): boolean
+    +returnsOptional(): boolean
+    +getMapKey(): String
+}
+
+class ParamMap<V> {
+    +get(key: Object): V
 }
 
 interface SqlSession {
@@ -54,22 +104,8 @@ class Configuration {
     +Configuration()
     +getMapper(type: Class<T>, sqlSession: SqlSession): T
     +addMapper(type: Class<T>): void
-}
-
-interface MapperMethodInvoker {
-    +invoke(proxy: Object, method: Method, args: Object[], sqlSession: SqlSession): Object
-}
-
-class PlainMethodInvoker {
-    -mapperMethod: MapperMethod
-    +PlainMethodInvoker(mapperMethod: MapperMethod)
-    +invoke(proxy: Object, method: Method, args: Object[], sqlSession: SqlSession): Object
-}
-
-class DefaultMethodInvoker {
-    -methodHandle: MethodHandle
-    +DefaultMethodInvoker(methodHandle: MethodHandle)
-    +invoke(proxy: Object, method: Method, args: Object[], sqlSession: SqlSession): Object
+    +getMapperRegistry(): MapperRegistry
+    +hasMapper(type: Class<?>): boolean
 }
 
 enum SqlCommandType {
@@ -82,15 +118,17 @@ enum SqlCommandType {
 }
 
 ' 关系定义
-SqlSession --> Configuration: uses
-Configuration --> MapperRegistry: uses
+SqlSession --> Configuration
+Configuration *-> MapperRegistry
 MapperRegistry --> MapperProxyFactory: creates
 MapperProxyFactory ..> MapperProxy: creates
-MapperProxy --> SqlSession: uses
+MapperProxy --> SqlSession
 MapperProxy --> MapperMethod: uses
+MapperMethod --> SqlCommand
+MapperMethod --> MethodSignature
+MapperMethod --> ParamMap
 MapperMethodInvoker <|.. PlainMethodInvoker
 MapperMethodInvoker <|.. DefaultMethodInvoker
-MapperMethod --> SqlCommandType: uses
 
 note right of MapperRegistry
   Mapper接口注册中心

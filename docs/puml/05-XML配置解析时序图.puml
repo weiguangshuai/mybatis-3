@@ -11,6 +11,8 @@ participant ":TransactionFactory" as TransFactory
 participant ":DataSourceFactory" as DSFactory
 participant ":Environment" as Environment
 participant ":XMLMapperBuilder" as XMLMapperBuilder
+participant ":XMLStatementBuilder" as XMLStatementBuilder
+participant ":MapperBuilderAssistant" as MapperBuilderAssistant
 participant ":SqlSourceBuilder" as SqlSourceBuilder
 participant ":MapperAnnotationBuilder" as MapperAnnotationBuilder
 participant ":MappedStatement" as MappedStatement
@@ -35,7 +37,11 @@ alt 解析properties
 end
 
 alt 解析settings
-    XMLConfigBuilder -> XMLConfigBuilder: settingsElement(root.evalNode("settings"))
+    XMLConfigBuilder -> XMLConfigBuilder: settingsAsProperties(root.evalNode("settings"))
+    note right of XMLConfigBuilder
+      将settings转换为Properties对象
+    end note
+    XMLConfigBuilder -> XMLConfigBuilder: settingsElement(settings)
     note right of XMLConfigBuilder
       解析settings节点
       配置MyBatis运行行为
@@ -54,6 +60,26 @@ alt 解析plugins
       添加插件(拦截器)
     end note
     XMLConfigBuilder -> InterceptorChain: addInterceptor(interceptor)
+end
+
+alt 解析objectFactory
+    XMLConfigBuilder -> XMLConfigBuilder: objectFactoryElement(root.evalNode("objectFactory"))
+end
+
+alt 解析objectWrapperFactory
+    XMLConfigBuilder -> XMLConfigBuilder: objectWrapperFactoryElement(root.evalNode("objectWrapperFactory"))
+end
+
+alt 解析reflectorFactory
+    XMLConfigBuilder -> XMLConfigBuilder: reflectorFactoryElement(root.evalNode("reflectorFactory"))
+end
+
+alt 解析databaseIdProvider
+    XMLConfigBuilder -> XMLConfigBuilder: databaseIdProviderElement(root.evalNode("databaseIdProvider"))
+end
+
+alt 解析typeHandlers
+    XMLConfigBuilder -> XMLConfigBuilder: typeHandlerElement(root.evalNode("typeHandlers"))
 end
 
 alt 解析environments
@@ -75,23 +101,44 @@ alt 解析mappers
     alt package方式
         XMLConfigBuilder -> Config: addMappers(packageName)
     else resource方式
-        XMLConfigBuilder -> XMLMapperBuilder: new XMLMapperBuilder(inputStream, config, resource)
+        XMLConfigBuilder -> XMLMapperBuilder: new XMLMapperBuilder(inputStream, configuration, resource, configuration.getSqlFragments())
         activate XMLMapperBuilder
 
         XMLMapperBuilder -> XMLMapperBuilder: parse()
 
         alt 解析cache
-            XMLMapperBuilder -> Config: addCache(cache)
+            XMLMapperBuilder -> MapperBuilderAssistant: addCache(cache)
+            note right of MapperBuilderAssistant
+              使用BuilderAssistant构建Cache
+              维护Cache之间的层级关系
+            end note
         else 解析resultMap
-            XMLMapperBuilder -> Config: addResultMap(resultMap)
+            XMLMapperBuilder -> MapperBuilderAssistant: addResultMap(resultMap)
+            note right of MapperBuilderAssistant
+              使用BuilderAssistant构建ResultMap
+              维护命名空间
+            end note
         else 解析SQL语句
-            XMLMapperBuilder -> Config: addMappedStatement(mappedStatement)
+            XMLMapperBuilder -> XMLStatementBuilder: new XMLStatementBuilder(...)
+            activate XMLStatementBuilder
+            XMLStatementBuilder -> MapperBuilderAssistant: addMappedStatement(mappedStatement)
+            note right of MapperBuilderAssistant
+              使用BuilderAssistant构建MappedStatement
+              维护语句ID
+            end note
+            deactivate XMLStatementBuilder
         end
 
         XMLMapperBuilder --> XMLConfigBuilder: void
         deactivate XMLMapperBuilder
     else class方式(注解)
-        XMLConfigBuilder -> MapperAnnotationBuilder: new MapperAnnotationBuilder(config, mapperInterface)
+        XMLConfigBuilder -> Config: addMapper(mapperInterface)
+        note right of Config
+          通过Configuration间接加载
+          内部调用MapperAnnotationBuilder
+        end note
+        activate Config
+        Config -> MapperAnnotationBuilder: new MapperAnnotationBuilder(config, mapperInterface)
         activate MapperAnnotationBuilder
 
         MapperAnnotationBuilder -> MapperAnnotationBuilder: parse()
@@ -101,6 +148,7 @@ alt 解析mappers
         end
 
         deactivate MapperAnnotationBuilder
+        deactivate Config
     end
 end
 
@@ -124,7 +172,7 @@ XMLMapperBuilder -> XMLMapperBuilder: parseStatementNodes()
 
 loop for each statementNode
     alt 获取SQL源码
-        XMLMapperBuilder -> SqlSourceBuilder: parse(...)
+        XMLMapperBuilder -> SqlSourceBuilder: parseScriptNode(node)
         note right of SqlSourceBuilder
           解析SQL文本
           构建SqlSource对象
@@ -132,7 +180,7 @@ loop for each statementNode
     else 构建MappedStatement
         XMLMapperBuilder -> MappedStatement: Builder(configuration, id, sqlSource, sqlCommandType).build()
     else 注册到Configuration
-        XMLMapperBuilder -> Config: addMappedStatement(mappedStatement)
+        XMLMapperBuilder -> MapperBuilderAssistant: addMappedStatement(mappedStatement)
     end
 end
 
@@ -155,7 +203,7 @@ loop for each resultMapping
 end
 
 alt 添加到Configuration
-    XMLMapperBuilder -> Config: addResultMap(resultMap)
+    XMLMapperBuilder -> MapperBuilderAssistant: addResultMap(resultMap)
 end
 
 note over User

@@ -252,11 +252,6 @@ alt INSERT/UPDATE/DELETE
       如自增ID
     end note
 
-    SimpleExec -> TCM: commit()
-    note right of SimpleExec
-      提交事务缓存
-    end note
-
     BaseExecutor --> CachingExecutor: rows
     deactivate BaseExecutor
 

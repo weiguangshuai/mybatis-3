@@ -4,6 +4,8 @@ hide footbox
 
 actor 开发者 as User
 participant ":SqlSessionFactoryBuilder" as Builder
+participant ":SqlSessionFactory" as SqlSessionFactory
+participant ":DefaultSqlSessionFactory" as DefaultSqlSessionFactory
 participant ":XMLConfigBuilder" as XMLConfigBuilder
 participant ":Configuration" as Config
 participant ":XMLMapperBuilder" as XMLMapperBuilder
@@ -12,6 +14,7 @@ participant ":MapperRegistry" as MapperRegistry
 participant ":Executor" as Executor
 participant ":CachingExecutor" as CachingExec
 participant ":TransactionFactory" as TransFactory
+participant ":Transaction" as Transaction
 participant ":DataSourceFactory" as DSFactory
 participant ":Environment" as Environment
 participant ":MappedStatement" as MappedStatement
@@ -30,21 +33,14 @@ note right of Builder
   可以是Reader、InputStream、File等
 end note
 
-Builder -> XMLConfigBuilder: new Configuration(), parse()
+Builder -> XMLConfigBuilder: new XMLConfigBuilder(inputStream, environment, props)
 note right of XMLConfigBuilder
   创建XMLConfigBuilder
-  并开始解析配置文件
+  内部通过BaseBuilder创建Configuration
 end note
 activate XMLConfigBuilder
 
-XMLConfigBuilder -> Config: new Configuration()
-note right of Config
-  创建全局配置对象
-  初始化各组件的默认实现
-end note
-activate Config
-
-note over Config
+note right of XMLConfigBuilder
   初始化内容:
   - typeAliasRegistry: 类型别名注册
   - typeHandlerRegistry: 类型处理器注册
@@ -53,9 +49,6 @@ note over Config
   - resultMaps: 结果映射集合
   - caches: 二级缓存集合
 end note
-
-Config --> XMLConfigBuilder: configuration
-deactivate Config
 
 XMLConfigBuilder -> XMLConfigBuilder: parseConfiguration(root)
 note right of XMLConfigBuilder
@@ -72,7 +65,11 @@ alt 解析properties
 end
 
 alt 解析settings
-    XMLConfigBuilder -> XMLConfigBuilder: settingsElement(root.evalNode("settings"))
+    XMLConfigBuilder -> XMLConfigBuilder: settingsAsProperties(root.evalNode("settings"))
+    note right of XMLConfigBuilder
+      将settings转换为Properties对象
+    end note
+    XMLConfigBuilder -> XMLConfigBuilder: settingsElement(settings)
     note right of XMLConfigBuilder
       解析settings节点
       配置MyBatis运行行为
@@ -105,6 +102,26 @@ alt 解析plugins
       添加插件(拦截器)
     end note
     XMLConfigBuilder -> Config: addInterceptor(interceptor)
+end
+
+alt 解析objectFactory
+    XMLConfigBuilder -> XMLConfigBuilder: objectFactoryElement(root.evalNode("objectFactory"))
+end
+
+alt 解析objectWrapperFactory
+    XMLConfigBuilder -> XMLConfigBuilder: objectWrapperFactoryElement(root.evalNode("objectWrapperFactory"))
+end
+
+alt 解析reflectorFactory
+    XMLConfigBuilder -> XMLConfigBuilder: reflectorFactoryElement(root.evalNode("reflectorFactory"))
+end
+
+alt 解析databaseIdProvider
+    XMLConfigBuilder -> XMLConfigBuilder: databaseIdProviderElement(root.evalNode("databaseIdProvider"))
+end
+
+alt 解析typeHandlers
+    XMLConfigBuilder -> XMLConfigBuilder: typeHandlerElement(root.evalNode("typeHandlers"))
 end
 
 alt 解析environments
@@ -150,7 +167,7 @@ alt 解析mappers
     end
 
     alt resource方式
-        XMLConfigBuilder -> XMLMapperBuilder: new XMLMapperBuilder(inputStream, config, resource)
+        XMLConfigBuilder -> XMLMapperBuilder: new XMLMapperBuilder(inputStream, configuration, resource, configuration.getSqlFragments())
         note right of XMLMapperBuilder
           加载指定的Mapper.xml文件
         end note
@@ -162,31 +179,76 @@ alt 解析mappers
         end note
 
         alt 解析cache
-            XMLMapperBuilder -> Config: addCache(cache)
-            note right of Config
-              创建Cache对象
-              配置二级缓存
+            XMLMapperBuilder -> Assistant: addCache(cache)
+            note right of Assistant
+              使用MapperBuilderAssistant
+              创建Cache对象并配置二级缓存
+            end note
+        end
+
+        alt 解析cache-ref
+            XMLMapperBuilder -> Assistant: addCacheRef(namespace, refNamespace)
+            note right of Assistant
+              引用其他Namespace的缓存
+            end note
+        end
+
+        alt 解析parameterMap
+            XMLMapperBuilder -> Assistant: buildParameterMap(...)
+            note right of Assistant
+              构建ParameterMap
             end note
         end
 
         alt 解析resultMap
-            XMLMapperBuilder -> Config: addResultMap(resultMap)
-            note right of Config
-              添加结果映射
-              供SQL语句引用
+            XMLMapperBuilder -> Assistant: addResultMap(resultMap)
+            note right of Assistant
+              使用MapperBuilderAssistant
+              构建ResultMap
+            end note
+        end
+
+        alt 解析sql片段
+            XMLConfigBuilder -> Config: getSqlFragments()
+            XMLMapperBuilder -> XMLMapperBuilder: parse_sqlFragments()
+            note right of XMLMapperBuilder
+              解析<sql>片段并注册
             end note
         end
 
         alt 解析SQL语句
-            XMLMapperBuilder -> Config: addMappedStatement(mappedStatement)
-            note right of Config
-              添加MappedStatement
-              包含SQL和映射配置
+            XMLMapperBuilder -> Assistant: addMappedStatement(mappedStatement)
+            note right of Assistant
+              使用MapperBuilderAssistant
+              构建MappedStatement
             end note
         end
 
+        XMLMapperBuilder -> Config: bindMapperForNamespace()
+        note right of XMLMapperBuilder
+          绑定Mapper接口与Namespace
+        end note
+
         XMLMapperBuilder --> XMLConfigBuilder: void
         deactivate XMLMapperBuilder
+    end
+
+    alt url方式
+        XMLConfigBuilder -> XMLMapperBuilder: new XMLMapperBuilder(inputStream, configuration, url, configuration.getSqlFragments())
+        note right of XMLMapperBuilder
+          通过URL加载Mapper.xml
+        end note
+        activate XMLMapperBuilder
+        XMLMapperBuilder -> XMLMapperBuilder: parse()
+        deactivate XMLMapperBuilder
+    end
+
+    alt class方式(注解)
+        XMLConfigBuilder -> Config: addMapper(mapperInterface)
+        note right of Config
+          通过注解加载Mapper接口
+          内部调用MapperAnnotationBuilder
+        end note
     end
 end
 
@@ -200,19 +262,33 @@ deactivate XMLConfigBuilder
 
 == 2. 获取SqlSession阶段 ==
 
-note over User, Builder
+note over User, SqlSessionFactory
   ★ SqlSessionFactory.openSession()
   创建SqlSession实例
 end note
 
-User -> Builder: openSession()
-note right of Builder
+User -> SqlSessionFactory: openSession()
+note right of SqlSessionFactory
   从SqlSessionFactory
   获取SqlSession
 end note
 
-Builder -> Builder: openSessionFromDataSource(executorType, transactionIsolationLevel, autoCommit)
-Builder -> Config: getExecutor(executorType)
+SqlSessionFactory -> DefaultSqlSessionFactory: openSession()
+activate DefaultSqlSessionFactory
+
+DefaultSqlSessionFactory -> DefaultSqlSessionFactory: openSessionFromDataSource(executorType, transactionIsolationLevel, autoCommit)
+
+alt 获取Transaction
+    DefaultSqlSessionFactory -> Config: getEnvironment()
+    Config --> DefaultSqlSessionFactory: environment
+    DefaultSqlSessionFactory -> TransFactory: newTransaction(dataSource, level, autoCommit)
+    note right of TransFactory
+      创建事务工厂
+      生成Transaction对象
+    end note
+end
+
+DefaultSqlSessionFactory -> Config: getExecutor(executorType)
 note right of Config
   根据执行器类型
   创建对应的Executor
@@ -246,15 +322,16 @@ note right of CachingExec
 end note
 CachingExec --> Config: executor
 
-Config --> Builder: executor
+Config --> DefaultSqlSessionFactory: executor
 
-Builder -> Builder: new DefaultSqlSession(config, executor, autoCommit)
-note right of Builder
+DefaultSqlSessionFactory -> DefaultSqlSessionFactory: new DefaultSqlSession(config, executor, autoCommit)
+note right of DefaultSqlSessionFactory
   创建DefaultSqlSession
   包装Configuration和Executor
 end note
 
-Builder --> User: SqlSession
+DefaultSqlSessionFactory --> User: SqlSession
+deactivate DefaultSqlSessionFactory
 
 note over User
   整体流程:

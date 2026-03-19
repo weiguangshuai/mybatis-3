@@ -95,7 +95,7 @@ else 二级缓存未命中
           (PerpetualCache实现)
         end note
         BaseExec --> SqlSession: List<Result>
-    else 一级缓存命中
+    else 一级缓存未命中
         BaseExec -> BaseExec: queryFromDatabase(...)
         note right of BaseExec
           需要查询数据库
