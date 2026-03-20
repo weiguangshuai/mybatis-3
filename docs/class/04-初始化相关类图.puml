@@ -1,0 +1,141 @@
+@startuml MyBatis-初始化相关类图
+title MyBatis 初始化相关类图（启动与工厂装配）
+
+top to bottom direction
+skinparam classAttributeIconSize 0
+
+package "启动入口" {
+  interface SqlSessionFactory
+
+  class SqlSessionFactoryBuilder {
+    +build(reader: Reader, environment: String, properties: Properties): SqlSessionFactory
+    +build(inputStream: InputStream, environment: String, properties: Properties): SqlSessionFactory
+    +build(config: Configuration): SqlSessionFactory
+  }
+
+  class DefaultSqlSessionFactory {
+    -configuration: Configuration
+    +openSession(): SqlSession
+    +getConfiguration(): Configuration
+  }
+}
+
+package "配置构建" {
+  abstract class BaseBuilder {
+    #configuration: Configuration
+  }
+
+  class XMLConfigBuilder {
+    -parsed: boolean
+    -parser: XPathParser
+    -environment: String
+    +parse(): Configuration
+    -parseConfiguration(root: XNode)
+  }
+
+  class Configuration {
+    -variables: Properties
+    -environment: Environment
+    -loadedResources: Set
+    +setVariables(props: Properties)
+    +setEnvironment(environment: Environment)
+    +addLoadedResource(resource: String)
+    +addMappers(packageName: String)
+    +addMapper(type: Class)
+  }
+
+  class XPathParser {
+    -document: Document
+    -variables: Properties
+    +evalNode(expression: String): XNode
+    +evalNodes(expression: String): List
+  }
+
+  class XNode {
+    +evalNode(path: String): XNode
+    +evalNodes(path: String): List
+    +getStringAttribute(name: String): String
+    +getChildrenAsProperties(): Properties
+  }
+
+  class XMLMapperEntityResolver
+}
+
+package "环境装配" {
+  interface TransactionFactory {
+    +setProperties(props: Properties)
+    +newTransaction(...): Transaction
+  }
+
+  interface DataSourceFactory {
+    +setProperties(props: Properties)
+    +getDataSource(): DataSource
+  }
+
+  interface DataSource
+  interface Transaction
+
+  class Environment {
+    -id: String
+    -transactionFactory: TransactionFactory
+    -dataSource: DataSource
+    +getId(): String
+    +getTransactionFactory(): TransactionFactory
+    +getDataSource(): DataSource
+  }
+
+  class "Environment.Builder" as EnvironmentBuilder {
+    -id: String
+    +transactionFactory(factory: TransactionFactory): EnvironmentBuilder
+    +dataSource(dataSource: DataSource): EnvironmentBuilder
+    +build(): Environment
+  }
+}
+
+SqlSessionFactory <|.. DefaultSqlSessionFactory
+SqlSessionFactoryBuilder --> XMLConfigBuilder : create parser
+SqlSessionFactoryBuilder ..> DefaultSqlSessionFactory : build(config)
+
+XMLConfigBuilder --|> BaseBuilder
+BaseBuilder --> Configuration
+XMLConfigBuilder o--> XPathParser
+XPathParser ..> XMLMapperEntityResolver : DTD / EntityResolver
+XPathParser ..> XNode : evalNode()/evalNodes()
+XMLConfigBuilder --> XNode : /configuration
+XMLConfigBuilder --> Configuration : settings / aliases / plugins / mappers
+XMLConfigBuilder --> TransactionFactory : transactionManagerElement()
+XMLConfigBuilder --> DataSourceFactory : dataSourceElement()
+XMLConfigBuilder --> EnvironmentBuilder : environmentsElement()
+EnvironmentBuilder --> Environment : build()
+Environment o--> TransactionFactory
+Environment o--> DataSource
+
+DefaultSqlSessionFactory o--> Configuration
+
+note top of SqlSessionFactoryBuilder
+  启动主入口：
+  build(Reader/InputStream) 会先创建 XMLConfigBuilder，
+  再调用 parse() 得到 Configuration，
+  最后包装成 DefaultSqlSessionFactory。
+end note
+
+note top of XMLConfigBuilder
+  parse() 只能执行一次。
+  parseConfiguration() 按固定顺序处理
+  properties -> settings -> environments -> mappers，
+  其中 environmentsElement() 会装配 Environment。
+end note
+
+note bottom of EnvironmentBuilder
+  XMLConfigBuilder.environmentsElement() 会先解析
+  transactionManager 与 dataSource，
+  再用 Environment.Builder 构造最终 Environment。
+end note
+
+note bottom of DefaultSqlSessionFactory
+  DefaultSqlSessionFactory 是初始化产物。
+  真正 openSession() 时才会读取 Environment，
+  创建 Transaction 和 Executor。
+end note
+
+@enduml

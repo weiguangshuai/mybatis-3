@@ -1,0 +1,189 @@
+@startuml MyBatis-动态SQL处理类图
+title MyBatis 动态 SQL 处理类图（XMLScriptBuilder -> BoundSql）
+
+top to bottom direction
+skinparam classAttributeIconSize 0
+
+package "脚本入口" {
+  interface LanguageDriver
+
+  class XMLLanguageDriver {
+    +createSqlSource(configuration: Configuration, script: XNode, parameterType: Class<?>): SqlSource
+    +createSqlSource(configuration: Configuration, script: String, parameterType: Class<?>): SqlSource
+  }
+
+  class XMLScriptBuilder {
+    -context: XNode
+    -isDynamic: boolean
+    -parameterType: Class<?>
+    -nodeHandlerMap: Map<String, NodeHandler>
+    +parseScriptNode(): SqlSource
+    #parseDynamicTags(node: XNode): MixedSqlNode
+  }
+}
+
+package "SQL 节点树" {
+  interface SqlNode {
+    +apply(context: DynamicContext): boolean
+  }
+
+  class MixedSqlNode {
+    -contents: List<SqlNode>
+  }
+
+  class TextSqlNode {
+    -text: String
+    +isDynamic(): boolean
+  }
+
+  class StaticTextSqlNode {
+    -text: String
+  }
+
+  class IfSqlNode {
+    -test: String
+    -contents: SqlNode
+  }
+
+  class ChooseSqlNode {
+    -ifSqlNodes: List<SqlNode>
+    -defaultSqlNode: SqlNode
+  }
+
+  class ForEachSqlNode {
+    -collectionExpression: String
+    -contents: SqlNode
+    -item: String
+    -index: String
+    -open: String
+    -close: String
+    -separator: String
+  }
+
+  class TrimSqlNode {
+    -contents: SqlNode
+    -prefix: String
+    -suffix: String
+  }
+
+  class WhereSqlNode
+  class SetSqlNode
+  class VarDeclSqlNode {
+    -name: String
+    -expression: String
+  }
+
+  class ExpressionEvaluator
+}
+
+package "运行期 SQL 产物" {
+  interface SqlSource {
+    +getBoundSql(parameterObject: Object): BoundSql
+  }
+
+  class DynamicSqlSource {
+    -rootSqlNode: SqlNode
+    +getBoundSql(parameterObject: Object): BoundSql
+  }
+
+  class RawSqlSource {
+    -sqlSource: SqlSource
+    +getBoundSql(parameterObject: Object): BoundSql
+  }
+
+  class SqlSourceBuilder {
+    +parse(originalSql: String, parameterType: Class<?>, additionalParameters: Map<String, Object>): SqlSource
+  }
+
+  class StaticSqlSource {
+    -sql: String
+    -parameterMappings: List<ParameterMapping>
+  }
+
+  class DynamicContext {
+    -bindings: ContextMap
+    -sqlBuilder: StringJoiner
+    +bind(name: String, value: Object)
+    +appendSql(sql: String)
+    +getSql(): String
+    +getBindings(): Map<String, Object>
+    +getUniqueNumber(): int
+  }
+
+  class BoundSql {
+    -sql: String
+    -parameterMappings: List<ParameterMapping>
+    -additionalParameters: Map<String, Object>
+    +setAdditionalParameter(name: String, value: Object)
+  }
+}
+
+LanguageDriver <|.. XMLLanguageDriver
+XMLLanguageDriver --> XMLScriptBuilder : createSqlSource(XNode)
+
+XMLScriptBuilder --> MixedSqlNode : root
+XMLScriptBuilder ..> DynamicSqlSource : isDynamic=true
+XMLScriptBuilder ..> RawSqlSource : isDynamic=false
+
+SqlNode <|.. MixedSqlNode
+SqlNode <|.. TextSqlNode
+SqlNode <|.. StaticTextSqlNode
+SqlNode <|.. IfSqlNode
+SqlNode <|.. ChooseSqlNode
+SqlNode <|.. ForEachSqlNode
+SqlNode <|.. TrimSqlNode
+SqlNode <|.. VarDeclSqlNode
+TrimSqlNode <|-- WhereSqlNode
+TrimSqlNode <|-- SetSqlNode
+
+MixedSqlNode o--> SqlNode : contents
+IfSqlNode --> SqlNode : contents
+ChooseSqlNode --> SqlNode : when/default
+ForEachSqlNode --> SqlNode : contents
+TrimSqlNode --> SqlNode : contents
+IfSqlNode --> ExpressionEvaluator
+ForEachSqlNode --> ExpressionEvaluator
+
+SqlSource <|.. DynamicSqlSource
+SqlSource <|.. RawSqlSource
+SqlSource <|.. StaticSqlSource
+
+DynamicSqlSource --> DynamicContext : apply tree
+DynamicSqlSource --> SqlNode : rootSqlNode
+DynamicSqlSource --> SqlSourceBuilder : parse #{}
+DynamicSqlSource --> BoundSql : setAdditionalParameter()
+RawSqlSource --> DynamicContext : startup precompute
+RawSqlSource --> SqlSourceBuilder : parse #{}
+RawSqlSource o--> SqlSource : default = StaticSqlSource
+SqlSourceBuilder ..> StaticSqlSource : create
+StaticSqlSource --> BoundSql
+
+note top of XMLScriptBuilder
+  nodeHandlerMap 会把 trim / where / set / foreach /
+  if / choose / when / otherwise / bind
+  转成对应 SqlNode。
+  只要出现动态标签或 TextSqlNode.isDynamic() 为 true，
+  parseScriptNode() 就返回 DynamicSqlSource。
+end note
+
+note top of TextSqlNode
+  TextSqlNode 负责处理 ${}。
+  isDynamic() 通过 GenericTokenParser 检查是否存在 ${}，
+  apply() 时再从 DynamicContext.bindings 取值并做字符串替换。
+end note
+
+note top of DynamicSqlSource
+  动态 SQL 在每次执行时都会：
+  1) 创建 DynamicContext
+  2) 遍历 SqlNode 树拼 SQL
+  3) 交给 SqlSourceBuilder 把 #{} 转成 ?
+  4) 生成 BoundSql，并把 bindings 写入 additionalParameters
+end note
+
+note bottom of RawSqlSource
+  静态 SQL 只在启动阶段解析一次。
+  即使 SQL 中包含 #{}，也会在构造时交给 SqlSourceBuilder，
+  因此运行期比 DynamicSqlSource 更轻量。
+end note
+
+@enduml

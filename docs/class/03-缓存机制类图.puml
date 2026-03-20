@@ -1,0 +1,216 @@
+@startuml MyBatis-缓存机制类图
+title MyBatis 缓存机制类图（源码导向）
+
+top to bottom direction
+skinparam classAttributeIconSize 0
+
+package "配置与映射" {
+  class Configuration {
+    -caches: Map<String, Cache>
+    -cacheEnabled: boolean = true
+    -localCacheScope: LocalCacheScope = SESSION
+    +addCache(cache: Cache)
+    +getCache(id: String): Cache
+    +newExecutor(transaction: Transaction): Executor
+  }
+
+  class MapperBuilderAssistant {
+    -currentCache: Cache
+    +useNewCache(...): Cache
+    +useCacheRef(namespace: String): Cache
+    +addMappedStatement(...): MappedStatement
+  }
+
+  class MappedStatement {
+    -cache: Cache
+    -useCache: boolean
+    -flushCacheRequired: boolean
+    +getCache(): Cache
+    +isUseCache(): boolean
+    +isFlushCacheRequired(): boolean
+  }
+
+  enum LocalCacheScope {
+    SESSION
+    STATEMENT
+  }
+}
+
+package "执行器缓存" {
+  interface Executor
+
+  abstract class BaseExecutor {
+    -localCache: PerpetualCache = new PerpetualCache("LocalCache")
+    -localOutputParameterCache: PerpetualCache = new PerpetualCache("LocalOutputParameterCache")
+    +query(...): List<E>
+    +createCacheKey(...): CacheKey
+    +clearLocalCache()
+  }
+
+  class CachingExecutor {
+    -delegate: Executor
+    -tcm: TransactionalCacheManager
+    +query(...): List<E>
+    +commit(required: boolean)
+    +rollback(required: boolean)
+  }
+
+  class CacheKey {
+    +update(object: Object)
+  }
+
+  class TransactionalCacheManager {
+    -transactionalCaches: Map<Cache, TransactionalCache>
+    +clear(cache: Cache)
+    +getObject(cache: Cache, key: CacheKey): Object
+    +putObject(cache: Cache, key: CacheKey, value: Object)
+    +commit()
+    +rollback()
+  }
+
+  class TransactionalCache {
+    -delegate: Cache
+    -entriesToAddOnCommit: Map<Object, Object>
+    -entriesMissedInCache: Set<Object>
+    +commit()
+    +rollback()
+  }
+}
+
+package "缓存实现与装饰器" {
+  interface Cache {
+    +getId(): String
+    +putObject(key: Object, value: Object)
+    +getObject(key: Object): Object
+    +removeObject(key: Object): Object
+    +clear()
+  }
+
+  class CacheBuilder {
+    -implementation: Class<? extends Cache>
+    -decorators: List<Class<? extends Cache>>
+    -size: Integer
+    -clearInterval: Long
+    -readWrite: boolean
+    -blocking: boolean
+    +build(): Cache
+  }
+
+  class PerpetualCache
+  class LruCache
+  class FifoCache
+  class SoftCache
+  class WeakCache
+  class ScheduledCache
+  class SerializedCache
+  class LoggingCache
+  class SynchronizedCache
+  class BlockingCache
+}
+
+' layout hints
+Configuration -[hidden]down-> MapperBuilderAssistant
+MapperBuilderAssistant -[hidden]down-> MappedStatement
+Executor -[hidden]down-> BaseExecutor
+BaseExecutor -[hidden]down-> CachingExecutor
+Cache -[hidden]down-> CacheBuilder
+PerpetualCache -[hidden]right-> LruCache
+LruCache -[hidden]right-> ScheduledCache
+ScheduledCache -[hidden]right-> SerializedCache
+SerializedCache -[hidden]right-> LoggingCache
+LoggingCache -[hidden]right-> SynchronizedCache
+SynchronizedCache -[hidden]right-> BlockingCache
+FifoCache -[hidden]down-> SoftCache
+SoftCache -[hidden]down-> WeakCache
+
+Configuration "1" o--> "*" Cache : namespace caches
+Configuration --> LocalCacheScope
+Configuration ..> CachingExecutor : cacheEnabled=true
+
+MapperBuilderAssistant --> CacheBuilder : useNewCache()
+MapperBuilderAssistant --> Configuration : addCache()/getCache()
+MapperBuilderAssistant --> MappedStatement : cache/useCache/flushCacheRequired
+MappedStatement --> Cache : namespace cache
+
+Executor <|.. BaseExecutor
+Executor <|.. CachingExecutor
+BaseExecutor --> PerpetualCache : 一级缓存
+BaseExecutor --> CacheKey
+BaseExecutor --> LocalCacheScope
+CachingExecutor o--> Executor : delegate
+CachingExecutor --> TransactionalCacheManager : tcm
+CachingExecutor --> MappedStatement : getCache()/flags
+CachingExecutor --> Cache : 二级缓存入口
+TransactionalCacheManager --> TransactionalCache : computeIfAbsent()
+TransactionalCacheManager --> Cache : index key
+TransactionalCache o--> Cache : delegate
+
+Cache <|.. PerpetualCache
+Cache <|.. LruCache
+Cache <|.. FifoCache
+Cache <|.. SoftCache
+Cache <|.. WeakCache
+Cache <|.. ScheduledCache
+Cache <|.. SerializedCache
+Cache <|.. LoggingCache
+Cache <|.. SynchronizedCache
+Cache <|.. BlockingCache
+Cache <|.. TransactionalCache
+
+LruCache o--> Cache : delegate
+FifoCache o--> Cache : delegate
+SoftCache o--> Cache : delegate
+WeakCache o--> Cache : delegate
+ScheduledCache o--> Cache : delegate
+SerializedCache o--> Cache : delegate
+LoggingCache o--> Cache : delegate
+SynchronizedCache o--> Cache : delegate
+BlockingCache o--> Cache : delegate
+
+CacheBuilder ..> PerpetualCache : 默认基类
+CacheBuilder ..> LruCache : 默认淘汰策略
+CacheBuilder ..> FifoCache : 可选淘汰策略
+CacheBuilder ..> SoftCache : 可选引用策略
+CacheBuilder ..> WeakCache : 可选引用策略
+CacheBuilder --> ScheduledCache : clearInterval
+CacheBuilder --> SerializedCache : readWrite=true
+CacheBuilder --> LoggingCache : 标准装饰器
+CacheBuilder --> SynchronizedCache : 标准装饰器
+CacheBuilder --> BlockingCache : blocking=true
+
+note top of BaseExecutor
+  一级缓存位于 Executor 内部。
+  localCache 与 localOutputParameterCache
+  都是 PerpetualCache。
+  localCacheScope=STATEMENT 时，语句结束即清空。
+end note
+
+note top of CachingExecutor
+  二级缓存生效条件：
+  cacheEnabled=true、MappedStatement.cache!=null、
+  useCache=true、resultHandler==null。
+  flushCacheRequired=true 时先执行 tcm.clear(cache)。
+end note
+
+note top of CacheBuilder
+  默认装配链：
+  PerpetualCache -> LruCache -> ScheduledCache? ->
+  SerializedCache? -> LoggingCache ->
+  SynchronizedCache -> BlockingCache?
+  自定义 Cache 实现不会套用用户 decorator；
+  若缺少日志能力，仅补一层 LoggingCache。
+end note
+
+note bottom of TransactionalCache
+  TransactionalCache 是二级缓存的事务缓冲层。
+  查询 miss 先记录；提交时把 entriesToAddOnCommit 刷入真实 Cache；
+  回滚时通过 removeObject() 释放 miss 对应的锁/占位。
+end note
+
+note bottom of CacheKey
+  CacheKey 由 BaseExecutor.createCacheKey() 生成，
+  组合 statementId、RowBounds、SQL、参数值、environmentId，
+  同时服务于一级缓存和二级缓存。
+end note
+
+@enduml

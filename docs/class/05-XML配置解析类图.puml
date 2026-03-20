@@ -1,0 +1,149 @@
+@startuml MyBatis-XML配置解析类图
+title MyBatis XML 配置解析类图（Configuration + Mapper XML）
+
+top to bottom direction
+skinparam classAttributeIconSize 0
+
+package "通用 XML 解析" {
+  class XPathParser {
+    +evalNode(expression: String): XNode
+    +evalNodes(expression: String): List<XNode>
+    +evalString(expression: String): String
+  }
+
+  class XNode {
+    +evalNode(path: String): XNode
+    +evalNodes(path: String): List<XNode>
+    +getStringAttribute(name: String): String
+    +getChildren(): List<XNode>
+    +getChildrenAsProperties(): Properties
+  }
+
+  class XMLMapperEntityResolver
+  class XMLIncludeTransformer {
+    +applyIncludes(source: Node)
+  }
+}
+
+package "配置与 Mapper 构建" {
+  abstract class BaseBuilder {
+    #configuration: Configuration
+  }
+
+  class XMLConfigBuilder {
+    -parser: XPathParser
+    +parse(): Configuration
+    -parseConfiguration(root: XNode)
+    -mapperElement(parent: XNode)
+  }
+
+  class XMLMapperBuilder {
+    -parser: XPathParser
+    -builderAssistant: MapperBuilderAssistant
+    -sqlFragments: Map<String, XNode>
+    +parse()
+    -configurationElement(context: XNode)
+    -buildStatementFromContext(list: List<XNode>)
+  }
+
+  class XMLStatementBuilder {
+    -builderAssistant: MapperBuilderAssistant
+    -context: XNode
+    -requiredDatabaseId: String
+    +parseStatementNode()
+  }
+
+  class MapperBuilderAssistant {
+    -currentNamespace: String
+    -currentCache: Cache
+    +setCurrentNamespace(namespace: String)
+    +addMappedStatement(...): MappedStatement
+    +useNewCache(...): Cache
+    +useCacheRef(namespace: String): Cache
+  }
+
+  class Configuration {
+    -sqlFragments: Map<String, XNode>
+    -mappedStatements: Map<String, MappedStatement>
+    -loadedResources: Set<String>
+    +addLoadedResource(resource: String)
+    +addMappedStatement(ms: MappedStatement)
+    +addIncompleteStatement(builder: XMLStatementBuilder)
+    +addMapper(type: Class<T>)
+  }
+
+  class MappedStatement {
+    -id: String
+    -databaseId: String
+    -sqlSource: SqlSource
+    -lang: LanguageDriver
+  }
+}
+
+package "脚本与语句产物" {
+  interface LanguageDriver {
+    +createSqlSource(configuration: Configuration, script: XNode, parameterType: Class<?>): SqlSource
+  }
+
+  interface SqlSource
+  interface Cache
+}
+
+XPathParser ..> XMLMapperEntityResolver : validation / entity resolve
+XPathParser ..> XNode : evalNode()/evalNodes()
+
+XMLConfigBuilder --|> BaseBuilder
+XMLMapperBuilder --|> BaseBuilder
+XMLStatementBuilder --|> BaseBuilder
+BaseBuilder --> Configuration
+
+XMLConfigBuilder o--> XPathParser
+XMLConfigBuilder --> XNode : /configuration
+XMLConfigBuilder ..> XMLMapperBuilder : mapperElement()
+
+XMLMapperBuilder o--> XPathParser
+XMLMapperBuilder o--> MapperBuilderAssistant
+XMLMapperBuilder --> XNode : /mapper
+XMLMapperBuilder ..> XMLStatementBuilder : buildStatementFromContext()
+XMLMapperBuilder --> Configuration : loadedResources / incomplete queues / addMapper()
+
+XMLStatementBuilder --> XNode : select|insert|update|delete
+XMLStatementBuilder --> XMLIncludeTransformer : applyIncludes()
+XMLStatementBuilder --> LanguageDriver : createSqlSource()
+XMLStatementBuilder --> MapperBuilderAssistant : addMappedStatement()
+
+MapperBuilderAssistant --> Cache : cache/cache-ref
+MapperBuilderAssistant --> MappedStatement : register
+Configuration o--> MappedStatement : mappedStatements
+MappedStatement --> SqlSource
+MappedStatement --> LanguageDriver
+
+note top of XMLConfigBuilder
+  负责解析 mybatis-config.xml。
+  mapperElement() 支持三种注册方式：
+  resource / url / class。
+  其中 resource、url 会创建 XMLMapperBuilder 继续深入解析。
+end note
+
+note top of XMLMapperBuilder
+  parse() 先解析 /mapper 根节点，
+  再处理 parsePendingResultMaps()、
+  parsePendingCacheRefs()、
+  parsePendingStatements()。
+  bindMapperForNamespace() 会尝试把 namespace 绑定到 Mapper 接口。
+end note
+
+note top of XMLStatementBuilder
+  parseStatementNode() 先做 include 展开，
+  再处理 selectKey、databaseId 匹配、LanguageDriver.createSqlSource()，
+  最终通过 MapperBuilderAssistant.addMappedStatement() 注册语句。
+end note
+
+note bottom of Configuration
+  Configuration 既保存全局配置，
+  也保存 XML 解析产物：
+  sqlFragments、mappedStatements、
+  incomplete* 队列、loadedResources。
+end note
+
+@enduml

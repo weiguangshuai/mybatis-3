@@ -1,0 +1,254 @@
+@startuml MyBatis-SqlSession查询流程类图
+title MyBatis SqlSession 查询流程类图（默认 selectList 路径）
+top to bottom direction
+skinparam classAttributeIconSize 0
+
+package "session" {
+  interface SqlSession {
+    +selectList(statement: String, parameter: Object): List<E>
+  }
+
+  class DefaultSqlSession {
+    -configuration: Configuration
+    -executor: Executor
+    +selectList(statement: String, parameter: Object, rowBounds: RowBounds): List<E>
+  }
+
+  class DefaultSqlSessionFactory {
+    +openSessionFromDataSource(execType: ExecutorType): SqlSession
+  }
+
+  class Configuration {
+    -cacheEnabled: boolean = true
+    -defaultExecutorType: ExecutorType = SIMPLE
+    -interceptorChain: InterceptorChain
+    +getMappedStatement(id: String): MappedStatement
+    +newExecutor(transaction: Transaction, executorType: ExecutorType): Executor
+    +newStatementHandler(executor: Executor, ms: MappedStatement, parameterObject: Object, rowBounds: RowBounds, resultHandler: ResultHandler, boundSql: BoundSql): StatementHandler
+    +newParameterHandler(ms: MappedStatement, parameterObject: Object, boundSql: BoundSql): ParameterHandler
+    +newResultSetHandler(executor: Executor, ms: MappedStatement, rowBounds: RowBounds, parameterHandler: ParameterHandler, resultHandler: ResultHandler, boundSql: BoundSql): ResultSetHandler
+  }
+
+  enum ExecutorType {
+    SIMPLE
+    REUSE
+    BATCH
+  }
+}
+
+package "plugin" {
+  class InterceptorChain {
+    +pluginAll(target: Object): Object
+  }
+}
+
+package "mapping" {
+  class MappedStatement {
+    -configuration: Configuration
+    -statementType: StatementType = PREPARED
+    -useCache: boolean
+    -flushCacheRequired: boolean
+    +getBoundSql(parameterObject: Object): BoundSql
+  }
+
+  class BoundSql
+  class RowBounds
+  interface ResultHandler
+
+  enum StatementType {
+    STATEMENT
+    PREPARED
+    CALLABLE
+  }
+}
+
+package "executor" {
+  interface Executor {
+    +query(ms: MappedStatement, parameter: Object, rowBounds: RowBounds, resultHandler: ResultHandler): List<E>
+    +query(ms: MappedStatement, parameter: Object, rowBounds: RowBounds, resultHandler: ResultHandler, key: CacheKey, boundSql: BoundSql): List<E>
+    +createCacheKey(ms: MappedStatement, parameterObject: Object, rowBounds: RowBounds, boundSql: BoundSql): CacheKey
+    +setExecutorWrapper(executor: Executor): void
+  }
+
+  class CacheKey
+
+  class CachingExecutor {
+    -delegate: Executor
+    +query(ms: MappedStatement, parameterObject: Object, rowBounds: RowBounds, resultHandler: ResultHandler): List<E>
+  }
+
+  abstract class BaseExecutor {
+    -configuration: Configuration
+    -wrapper: Executor = this
+    +query(ms: MappedStatement, parameter: Object, rowBounds: RowBounds, resultHandler: ResultHandler): List<E>
+    -queryFromDatabase(ms: MappedStatement, parameter: Object, rowBounds: RowBounds, resultHandler: ResultHandler, key: CacheKey, boundSql: BoundSql): List<E>
+    #doQuery(ms: MappedStatement, parameter: Object, rowBounds: RowBounds, resultHandler: ResultHandler, boundSql: BoundSql): List<E>
+  }
+
+  class SimpleExecutor {
+    +doQuery(ms: MappedStatement, parameter: Object, rowBounds: RowBounds, resultHandler: ResultHandler, boundSql: BoundSql): List<E>
+  }
+
+  class ReuseExecutor
+  class BatchExecutor
+}
+
+package "statement" {
+  interface StatementHandler {
+    +prepare(connection: Connection, transactionTimeout: Integer): Statement
+    +parameterize(statement: Statement): void
+    +query(statement: Statement, resultHandler: ResultHandler): List<E>
+    +getBoundSql(): BoundSql
+    +getParameterHandler(): ParameterHandler
+  }
+
+  class RoutingStatementHandler {
+    -delegate: StatementHandler
+  }
+
+  abstract class BaseStatementHandler {
+    -boundSql: BoundSql
+    -parameterHandler: ParameterHandler
+    -resultSetHandler: ResultSetHandler
+    +prepare(connection: Connection, transactionTimeout: Integer): Statement
+  }
+
+  class PreparedStatementHandler {
+    +parameterize(statement: Statement): void
+    +query(statement: Statement, resultHandler: ResultHandler): List<E>
+  }
+
+  class SimpleStatementHandler
+  class CallableStatementHandler
+}
+
+package "parameter/resultset" {
+  interface ParameterHandler {
+    +getParameterObject(): Object
+    +setParameters(ps: PreparedStatement): void
+  }
+
+  class DefaultParameterHandler {
+    -mappedStatement: MappedStatement
+    -parameterObject: Object
+    -boundSql: BoundSql
+    +setParameters(ps: PreparedStatement): void
+  }
+
+  interface ResultSetHandler {
+    +handleResultSets(stmt: Statement): List<E>
+  }
+
+  class DefaultResultSetHandler {
+    -executor: Executor
+    -mappedStatement: MappedStatement
+    -parameterHandler: ParameterHandler
+    -boundSql: BoundSql
+    -rowBounds: RowBounds
+    +handleResultSets(stmt: Statement): List<E>
+  }
+}
+
+SqlSession <|.. DefaultSqlSession
+DefaultSqlSession --> Configuration : getMappedStatement()
+DefaultSqlSession --> Executor : query()
+DefaultSqlSessionFactory --> Configuration : newExecutor()
+DefaultSqlSessionFactory ..> DefaultSqlSession : creates
+
+Configuration --> InterceptorChain
+Configuration --> MappedStatement : returns
+Configuration ..> Executor : pluginAll()
+Configuration ..> StatementHandler : pluginAll()
+Configuration ..> ParameterHandler : pluginAll()
+Configuration ..> ResultSetHandler : pluginAll()
+
+MappedStatement --> Configuration
+MappedStatement --> BoundSql : getBoundSql()
+
+Executor <|.. CachingExecutor
+Executor <|.. BaseExecutor
+BaseExecutor <|-- SimpleExecutor
+BaseExecutor <|-- ReuseExecutor
+BaseExecutor <|-- BatchExecutor
+CachingExecutor o--> Executor : delegate
+CachingExecutor --> BaseExecutor : setExecutorWrapper(this)
+BaseExecutor --> BoundSql : createCacheKey()
+BaseExecutor --> MappedStatement
+BaseExecutor --> RowBounds
+SimpleExecutor --> Configuration : newStatementHandler(wrapper, ...)
+
+StatementHandler <|.. RoutingStatementHandler
+StatementHandler <|.. BaseStatementHandler
+BaseStatementHandler <|-- PreparedStatementHandler
+BaseStatementHandler <|-- SimpleStatementHandler
+BaseStatementHandler <|-- CallableStatementHandler
+RoutingStatementHandler o--> PreparedStatementHandler : PREPARED
+RoutingStatementHandler o--> SimpleStatementHandler : STATEMENT
+RoutingStatementHandler o--> CallableStatementHandler : CALLABLE
+BaseStatementHandler --> ParameterHandler
+BaseStatementHandler --> ResultSetHandler
+BaseStatementHandler --> BoundSql
+
+ParameterHandler <|.. DefaultParameterHandler
+ResultSetHandler <|.. DefaultResultSetHandler
+DefaultParameterHandler --> MappedStatement
+DefaultParameterHandler --> BoundSql
+DefaultResultSetHandler --> Executor
+DefaultResultSetHandler --> MappedStatement
+DefaultResultSetHandler --> BoundSql
+DefaultResultSetHandler --> RowBounds
+PreparedStatementHandler --> ResultSetHandler : handleResultSets()
+
+note right of DefaultSqlSessionFactory
+  Configuration.newExecutor() 发生在
+  openSession 阶段。查询阶段直接复用
+  已创建好的 executor。
+end note
+
+note right of Configuration
+  newExecutor() / newStatementHandler() /
+  newParameterHandler() / newResultSetHandler()
+  返回前都会经过 interceptorChain.pluginAll()，
+  运行时对象可能是插件代理。
+end note
+
+note right of CachingExecutor
+  cacheEnabled=true 时，Configuration.newExecutor()
+  会用它包裹底层 Executor。query() 先检查
+  二级缓存，未命中或不适用时委派给 delegate。
+end note
+
+note right of BaseExecutor
+  wrapper 初始为 this。若外层包裹
+  CachingExecutor，delegate.setExecutorWrapper(this)
+  会把 wrapper 改成外层执行器，供后续
+  StatementHandler / 延迟加载场景使用。
+end note
+
+note right of RoutingStatementHandler
+  本图高亮默认查询分支：
+  ExecutorType.SIMPLE + StatementType.PREPARED。
+  代码里仍支持 REUSE / BATCH 以及
+  STATEMENT / CALLABLE 分支。
+end note
+
+note right of PreparedStatementHandler
+  parameterize() 调用 ParameterHandler
+  绑定参数，query() 执行语句后交给
+  ResultSetHandler.handleResultSets()。
+end note
+
+note bottom of DefaultResultSetHandler
+  默认 selectList 查询链路：
+  1. DefaultSqlSessionFactory.openSession()
+  2. Configuration.newExecutor() -> SimpleExecutor
+  3. 可选包裹 CachingExecutor
+  4. DefaultSqlSession.selectList()
+  5. Executor.query() -> BaseExecutor.doQuery()
+  6. Configuration.newStatementHandler()
+  7. RoutingStatementHandler -> PreparedStatementHandler
+  8. DefaultParameterHandler.setParameters()
+  9. DefaultResultSetHandler.handleResultSets()
+end note
+
+@enduml
