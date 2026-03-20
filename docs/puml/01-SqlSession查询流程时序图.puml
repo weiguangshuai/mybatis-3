@@ -3,245 +3,133 @@ title MyBatis SqlSession 查询流程时序图
 hide footbox
 
 actor 用户 as User
-participant ":SqlSession" as SqlSession
+participant ":DefaultSqlSession" as SqlSession
 participant ":Configuration" as Config
 participant ":CachingExecutor" as CachingExec
 participant ":BaseExecutor" as BaseExec
 participant ":SimpleExecutor" as SimpleExec
 participant ":StatementHandler" as StatementHandler
-participant ":PreparedStatementHandler" as PrepStmtHandler
 participant ":ParameterHandler" as ParameterHandler
 participant ":ResultSetHandler" as ResultSetHandler
-participant ":JdbcTransaction" as Transaction
+participant ":Transaction" as Transaction
 participant ":Connection" as Connection
 participant ":PreparedStatement" as PS
-participant ":ResultSet" as RS
 
-note right of User
-  用户调用selectOne方法
-  传入SQL语句ID和参数
+== 1. 查询入口 ==
+
+User -> SqlSession: selectOne(statementId, parameter)
+note right of SqlSession
+  selectOne() 内部先调用 selectList()
+  再根据结果条数返回单条/抛异常/返回 null
 end note
 
-== 1. 初始化阶段：获取MappedStatement ==
-
-User -> SqlSession: selectOne("statementId", param)
-note right
-  selectOne内部调用selectList
-  只取第一个结果
-end note
-SqlSession -> SqlSession: selectList(statement, param)
+SqlSession -> SqlSession: selectList(statementId, parameter)
 SqlSession -> Config: getMappedStatement(statementId)
-note right of Config
-  从Configuration获取
-  MappedStatement对象
-  包含SQL、参数映射、结果映射等信息
-end note
 Config --> SqlSession: MappedStatement
-
-== 2. 查询执行阶段：二级缓存处理 ==
-
-SqlSession -> CachingExec: query(MappedStatement, param, rowBounds, handler)
-note right of CachingExec
-  开始查询流程
-  首先进入二级缓存执行器
-end note
+SqlSession -> CachingExec: query(ms, wrapCollection(parameter), rowBounds, handler)
 activate CachingExec
 
-CachingExec -> CachingExec: getBoundSql(param)
-note right of CachingExec
-  获取绑定的SQL对象
-  处理${}动态参数
-end note
+== 2. 二级缓存处理 ==
 
-CachingExec -> CachingExec: createCacheKey(ms, param, rowBounds, boundSql)
-note right of CachingExec
-  创建缓存Key
-  包含:statementId+参数+分页+SQL
-end note
+CachingExec -> CachingExec: boundSql = ms.getBoundSql(parameter)
+CachingExec -> CachingExec: key = createCacheKey(ms, parameter, rowBounds, boundSql)
 
-CachingExec -> CachingExec: query(..., key, boundSql)
-note right of CachingExec
-  重载query方法
-  带缓存Key的版本
-end note
+alt 配置了二级缓存 && useCache=true && resultHandler==null
+  CachingExec -> CachingExec: flushCacheIfRequired(ms)
+  CachingExec -> CachingExec: ensureNoOutParams(ms, boundSql)
+  CachingExec -> CachingExec: tcm.getObject(cache, key)
 
-alt 二级缓存命中
-    CachingExec -> CachingExec: tcm.getObject(cache, key)
-    note right of CachingExec
-      从TransactionalCacheManager
-      获取二级缓存
-    end note
-    CachingExec --> SqlSession: List<Result>
-    note right of SqlSession
-      直接返回缓存结果
-      跳过数据库查询
-    end note
+  alt 二级缓存命中
+    CachingExec --> SqlSession: cachedList
     deactivate CachingExec
-
-else 二级缓存未命中
-    CachingExec -> BaseExec: query(ms, param, rowBounds, handler, key, boundSql)
-    note right of BaseExec
-      缓存未命中
-      转发给BaseExecutor
-    end note
+  else 二级缓存未命中
+    CachingExec -> BaseExec: query(ms, parameter, rowBounds, handler, key, boundSql)
     activate BaseExec
-
-    == 3. 一级缓存处理 ==
-
-    alt 一级缓存命中
-        BaseExec -> BaseExec: localCache.getObject(key)
-        note right of BaseExec
-          查询一级缓存
-          (PerpetualCache实现)
-        end note
-        BaseExec --> SqlSession: List<Result>
-    else 一级缓存未命中
-        BaseExec -> BaseExec: queryFromDatabase(...)
-        note right of BaseExec
-          需要查询数据库
-        end note
-        activate BaseExec
-
-        == 4. 真正执行SQL ==
-
-        BaseExec -> SimpleExec: doQuery(ms, param, rowBounds, resultHandler, boundSql)
-        note right of SimpleExec
-          调用SimpleExecutor
-          执行真正的查询
-        end note
-        activate SimpleExec
-
-        SimpleExec -> Config: newStatementHandler(...)
-        note right of Config
-          创建StatementHandler
-          根据StatementType选择具体类型
-        end note
-        Config -> StatementHandler: create RoutingStatementHandler
-        note right of StatementHandler
-          RoutingStatementHandler
-          根据配置选择
-          PreparedStatementHandler
-        end note
-        StatementHandler --> SimpleExec: StatementHandler
-
-        SimpleExec -> Transaction: getConnection()
-        note right of Transaction
-          从连接池获取连接
-        end note
-        Transaction -> Connection: getConnection()
-        Connection --> Transaction: Connection
-        Transaction --> SimpleExec: Connection
-
-        SimpleExec -> StatementHandler: prepare(connection, timeout)
-        note right of StatementHandler
-          预编译SQL
-          创建PreparedStatement
-        end note
-        StatementHandler -> Connection: prepareStatement(sql)
-        Connection --> StatementHandler: PreparedStatement
-
-        StatementHandler -> ParameterHandler: setParameters(ps)
-        note right of ParameterHandler
-          设置SQL参数
-          将Java对象参数
-          绑定到?占位符
-        end note
-        ParameterHandler -> PS: setXXX(param1, value)
-        note right of PS
-          调用PreparedStatement
-          的setInt/setString等方法
-        end note
-        PS --> ParameterHandler: void
-
-        == 5. 执行查询并处理结果 ==
-
-        StatementHandler -> PrepStmtHandler: query(stmt, resultHandler)
-        activate PrepStmtHandler
-
-        PrepStmtHandler -> PS: ps.execute()
-        note right of PS
-          执行SQL语句
-        end note
-
-        PS -> RS: execute()
-        note right of RS
-          JDBC驱动返回ResultSet
-        end note
-
-        PrepStmtHandler -> ResultSetHandler: handleResultSets(ps)
-        note right of ResultSetHandler
-          处理结果集
-          将ResultSet映射为Java对象
-        end note
-        activate ResultSetHandler
-
-        ResultSetHandler -> RS: next()
-        note right of ResultSetHandler
-          遍历结果集
-        end note
-
-        ResultSetHandler -> ResultSetHandler: getRowMapper().map(rs, rowNum)
-        note right of ResultSetHandler
-          获取对应的RowMapper
-          进行映射
-        end note
-
-        ResultSetHandler -> ResultSetHandler: create object via ObjectFactory
-        note right of ResultSetHandler
-          使用ObjectFactory
-          创建结果对象
-        end note
-
-        loop 遍历每一行结果
-            ResultSetHandler -> ResultSetHandler: apply automatic mappings
-            note right of ResultSetHandler
-              应用自动映射
-              (列名与属性名匹配)
-            end note
-            ResultSetHandler -> ResultSetHandler: apply column mappings
-            note right of ResultSetHandler
-              应用列映射
-              处理特殊类型转换
-            end note
-        end
-
-        ResultSetHandler --> PrepStmtHandler: List<ResultObject>
-        deactivate ResultSetHandler
-
-        PrepStmtHandler --> SimpleExec: List<ResultObject>
-        deactivate PrepStmtHandler
-
-        == 6. 放入一级缓存 ==
-
-        SimpleExec -> BaseExec: List<ResultObject>
-        deactivate SimpleExec
-
-        BaseExec -> BaseExec: localCache.putObject(key, list)
-        note right of BaseExec
-          放入一级缓存
-          供下次查询使用
-        end note
-        BaseExec --> SqlSession: List<ResultObject>
-
-        deactivate BaseExec
-    end
-
-    == 7. 放入二级缓存 ==
-
-    CachingExec -> BaseExec: query result
-    CachingExec -> CachingExec: tcm.putObject(cache, key, list)
-    note right of CachingExec
-      放入二级缓存
-      (TransactionalCache管理)
-    end note
-    CachingExec --> SqlSession: List<Result>
-    deactivate BaseExec
+  end
+else 未配置二级缓存 or useCache=false or 自定义ResultHandler
+  CachingExec -> BaseExec: query(ms, parameter, rowBounds, handler, key, boundSql)
+  activate BaseExec
 end
 
-SqlSession --> User: ResultObject
-note right of User
-  返回查询结果
-  (单条记录)
-end note
+== 3. 一级缓存处理 ==
+
+alt queryStack==0 && flushCacheRequired=true
+  BaseExec -> BaseExec: clearLocalCache()
+end
+
+alt resultHandler==null 且 localCache 命中
+  BaseExec -> BaseExec: localCache.getObject(key)
+  BaseExec --> CachingExec: cachedList
+else 一级缓存未命中
+  BaseExec -> BaseExec: queryFromDatabase(...)
+  note right of BaseExec
+    queryFromDatabase() 会先放入
+    EXECUTION_PLACEHOLDER，查询完成后
+    再将结果写回 localCache
+  end note
+
+  BaseExec -> SimpleExec: doQuery(ms, parameter, rowBounds, resultHandler, boundSql)
+  activate SimpleExec
+
+  == 4. 创建 Statement 并执行 SQL ==
+
+  SimpleExec -> Config: newStatementHandler(executor, ms, parameter, rowBounds, resultHandler, boundSql)
+  Config --> SimpleExec: StatementHandler
+
+  SimpleExec -> Transaction: getConnection()
+  Transaction -> Connection: getConnection()
+  Connection --> Transaction: Connection
+  Transaction --> SimpleExec: Connection
+
+  SimpleExec -> StatementHandler: prepare(connection, timeout)
+  StatementHandler -> Connection: prepareStatement(sql)
+  Connection --> StatementHandler: PreparedStatement
+
+  SimpleExec -> StatementHandler: parameterize(statement)
+  StatementHandler -> ParameterHandler: setParameters(ps)
+  ParameterHandler -> PS: typeHandler.setParameter(i, value, jdbcType)
+
+  == 5. 结果集映射 ==
+
+  SimpleExec -> StatementHandler: query(statement, resultHandler)
+  StatementHandler -> PS: execute()
+  PS --> StatementHandler: executed
+  StatementHandler -> ResultSetHandler: handleResultSets(ps)
+  activate ResultSetHandler
+  ResultSetHandler -> PS: getResultSet()/getMoreResults()
+  ResultSetHandler -> ResultSetHandler: handleRowValues(...)
+  ResultSetHandler -> ResultSetHandler: createResultObject(...)
+  ResultSetHandler -> ResultSetHandler: applyAutomaticMappings(...)
+  ResultSetHandler -> ResultSetHandler: applyPropertyMappings(...)
+  ResultSetHandler --> StatementHandler: List<ResultObject>
+  deactivate ResultSetHandler
+
+  StatementHandler --> SimpleExec: List<ResultObject>
+  SimpleExec --> BaseExec: List<ResultObject>
+  deactivate SimpleExec
+
+  BaseExec -> BaseExec: localCache.putObject(key, list)
+  note right of BaseExec
+    CacheKey 包含:
+    ms.id / offset / limit / SQL / 参数值 / environmentId
+  end note
+  BaseExec --> CachingExec: List<ResultObject>
+end
+
+deactivate BaseExec
+
+== 6. 返回结果 ==
+
+alt 二级缓存可用且本次为数据库查询结果
+  CachingExec -> CachingExec: tcm.putObject(cache, key, list)
+  note right of CachingExec
+    这里只写入 TransactionalCache
+    真正刷入二级缓存发生在 commit()
+  end note
+end
+
+CachingExec --> SqlSession: List<ResultObject>
+deactivate CachingExec
+SqlSession --> User: ResultObject / List<ResultObject>
 
 @enduml

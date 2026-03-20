@@ -3,221 +3,91 @@ title MyBatis XML配置文件解析时序图
 hide footbox
 
 actor 开发者 as User
-participant ":XMLConfigBuilder" as XMLConfigBuilder
+participant ":XMLConfigBuilder" as ConfigBuilder
 participant ":Configuration" as Config
 participant ":TypeAliasRegistry" as TypeAliasRegistry
 participant ":InterceptorChain" as InterceptorChain
 participant ":TransactionFactory" as TransFactory
 participant ":DataSourceFactory" as DSFactory
 participant ":Environment" as Environment
-participant ":XMLMapperBuilder" as XMLMapperBuilder
-participant ":XMLStatementBuilder" as XMLStatementBuilder
-participant ":MapperBuilderAssistant" as MapperBuilderAssistant
-participant ":SqlSourceBuilder" as SqlSourceBuilder
-participant ":MapperAnnotationBuilder" as MapperAnnotationBuilder
-participant ":MappedStatement" as MappedStatement
+participant ":XMLMapperBuilder" as MapperBuilder
+participant ":XMLStatementBuilder" as StatementBuilder
+participant ":MapperBuilderAssistant" as Assistant
+participant ":MapperAnnotationBuilder" as AnnotationBuilder
 
-note over User, XMLConfigBuilder
-  ★ 解析入口:
-  SqlSessionFactoryBuilder.build(inputStream)
-  → XMLConfigBuilder.parse()
+== 1. XMLConfigBuilder.parse() ==
+
+User -> ConfigBuilder: parse()
+activate ConfigBuilder
+ConfigBuilder -> ConfigBuilder: parser.evalNode("/configuration")
+ConfigBuilder -> ConfigBuilder: parseConfiguration(root)
+
+ConfigBuilder -> ConfigBuilder: propertiesElement(root.evalNode("properties"))
+ConfigBuilder -> Config: setVariables(props)
+
+ConfigBuilder -> ConfigBuilder: settingsAsProperties(root.evalNode("settings"))
+ConfigBuilder -> ConfigBuilder: loadCustomVfs()/loadCustomLogImpl()
+ConfigBuilder -> ConfigBuilder: settingsElement(settings)
+note right of Config
+  这里会设置 cacheEnabled、defaultExecutorType、
+  mapUnderscoreToCamelCase、localCacheScope 等配置
 end note
 
-== 1. XMLConfigBuilder 解析入口 ==
+ConfigBuilder -> ConfigBuilder: typeAliasesElement(root.evalNode("typeAliases"))
+ConfigBuilder -> TypeAliasRegistry: registerAlias(...)
 
-User -> XMLConfigBuilder: parse()
-activate XMLConfigBuilder
+ConfigBuilder -> ConfigBuilder: pluginElement(root.evalNode("plugins"))
+ConfigBuilder -> InterceptorChain: addInterceptor(interceptor)
 
-XMLConfigBuilder -> XMLConfigBuilder: parser.evalNode("/configuration")
-XMLConfigBuilder -> XMLConfigBuilder: parseConfiguration(node)
+ConfigBuilder -> ConfigBuilder: objectFactoryElement(...)
+ConfigBuilder -> ConfigBuilder: objectWrapperFactoryElement(...)
+ConfigBuilder -> ConfigBuilder: reflectorFactoryElement(...)
 
-alt 解析properties
-    XMLConfigBuilder -> XMLConfigBuilder: propertiesElement(root.evalNode("properties"))
-    XMLConfigBuilder -> Config: setVariables(props)
+ConfigBuilder -> ConfigBuilder: environmentsElement(root.evalNode("environments"))
+ConfigBuilder -> TransFactory: transactionManagerElement(...)
+ConfigBuilder -> DSFactory: dataSourceElement(...)
+ConfigBuilder -> Environment: new Environment.Builder(...).build()
+ConfigBuilder -> Config: setEnvironment(environment)
+
+ConfigBuilder -> ConfigBuilder: databaseIdProviderElement(root.evalNode("databaseIdProvider"))
+ConfigBuilder -> ConfigBuilder: typeHandlerElement(root.evalNode("typeHandlers"))
+ConfigBuilder -> ConfigBuilder: mapperElement(root.evalNode("mappers"))
+
+== 2. Mapper 加载方式 ==
+
+alt package 方式
+  ConfigBuilder -> Config: addMappers(packageName)
+else resource/url 方式
+  ConfigBuilder -> MapperBuilder: new XMLMapperBuilder(inputStream, configuration, resourceOrUrl, sqlFragments)
+  activate MapperBuilder
+  MapperBuilder -> MapperBuilder: parse()
+  MapperBuilder -> MapperBuilder: configurationElement(/mapper)
+  MapperBuilder -> Assistant: cacheRefElement()/cacheElement()
+  MapperBuilder -> Assistant: resultMapElements(...)
+  MapperBuilder -> MapperBuilder: sqlElement(...)
+  MapperBuilder -> StatementBuilder: parseStatementNode()
+  activate StatementBuilder
+  StatementBuilder -> StatementBuilder: applyIncludes(context.getNode())
+  StatementBuilder -> StatementBuilder: processSelectKeyNodes(...)
+  StatementBuilder -> StatementBuilder: langDriver.createSqlSource(...)
+  StatementBuilder -> Assistant: addMappedStatement(...)
+  deactivate StatementBuilder
+  MapperBuilder -> MapperBuilder: parsePendingResultMaps()/parsePendingCacheRefs()/parsePendingStatements()
+  MapperBuilder -> MapperBuilder: bindMapperForNamespace()
+  deactivate MapperBuilder
+else class 方式
+  ConfigBuilder -> Config: addMapper(mapperInterface)
+  Config -> AnnotationBuilder: parse()
 end
 
-alt 解析settings
-    XMLConfigBuilder -> XMLConfigBuilder: settingsAsProperties(root.evalNode("settings"))
-    note right of XMLConfigBuilder
-      将settings转换为Properties对象
-    end note
-    XMLConfigBuilder -> XMLConfigBuilder: settingsElement(settings)
-    note right of XMLConfigBuilder
-      解析settings节点
-      配置MyBatis运行行为
-    end note
-end
-
-alt 解析typeAliases
-    XMLConfigBuilder -> XMLConfigBuilder: typeAliasesElement(root.evalNode("typeAliases"))
-    XMLConfigBuilder -> Config: typeAliasRegistry.registerAlias(...)
-end
-
-alt 解析plugins
-    XMLConfigBuilder -> XMLConfigBuilder: pluginElement(root.evalNode("plugins"))
-    note right of XMLConfigBuilder
-      解析plugins节点
-      添加插件(拦截器)
-    end note
-    XMLConfigBuilder -> InterceptorChain: addInterceptor(interceptor)
-end
-
-alt 解析objectFactory
-    XMLConfigBuilder -> XMLConfigBuilder: objectFactoryElement(root.evalNode("objectFactory"))
-end
-
-alt 解析objectWrapperFactory
-    XMLConfigBuilder -> XMLConfigBuilder: objectWrapperFactoryElement(root.evalNode("objectWrapperFactory"))
-end
-
-alt 解析reflectorFactory
-    XMLConfigBuilder -> XMLConfigBuilder: reflectorFactoryElement(root.evalNode("reflectorFactory"))
-end
-
-alt 解析databaseIdProvider
-    XMLConfigBuilder -> XMLConfigBuilder: databaseIdProviderElement(root.evalNode("databaseIdProvider"))
-end
-
-alt 解析typeHandlers
-    XMLConfigBuilder -> XMLConfigBuilder: typeHandlerElement(root.evalNode("typeHandlers"))
-end
-
-alt 解析environments
-    XMLConfigBuilder -> XMLConfigBuilder: environmentsElement(root.evalNode("environments"))
-
-    alt 解析transactionManager
-        XMLConfigBuilder -> TransFactory: newTransaction(...)
-    else 解析dataSource
-        XMLConfigBuilder -> DSFactory: newDataSource(...)
-    end
-
-    XMLConfigBuilder -> Environment: new Environment(...)
-    XMLConfigBuilder -> Config: setEnvironment(environment)
-end
-
-alt 解析mappers
-    XMLConfigBuilder -> XMLConfigBuilder: mapperElement(root.evalNode("mappers"))
-
-    alt package方式
-        XMLConfigBuilder -> Config: addMappers(packageName)
-    else resource方式
-        XMLConfigBuilder -> XMLMapperBuilder: new XMLMapperBuilder(inputStream, configuration, resource, configuration.getSqlFragments())
-        activate XMLMapperBuilder
-
-        XMLMapperBuilder -> XMLMapperBuilder: parse()
-
-        alt 解析cache
-            XMLMapperBuilder -> MapperBuilderAssistant: addCache(cache)
-            note right of MapperBuilderAssistant
-              使用BuilderAssistant构建Cache
-              维护Cache之间的层级关系
-            end note
-        else 解析resultMap
-            XMLMapperBuilder -> MapperBuilderAssistant: addResultMap(resultMap)
-            note right of MapperBuilderAssistant
-              使用BuilderAssistant构建ResultMap
-              维护命名空间
-            end note
-        else 解析SQL语句
-            XMLMapperBuilder -> XMLStatementBuilder: new XMLStatementBuilder(...)
-            activate XMLStatementBuilder
-            XMLStatementBuilder -> MapperBuilderAssistant: addMappedStatement(mappedStatement)
-            note right of MapperBuilderAssistant
-              使用BuilderAssistant构建MappedStatement
-              维护语句ID
-            end note
-            deactivate XMLStatementBuilder
-        end
-
-        XMLMapperBuilder --> XMLConfigBuilder: void
-        deactivate XMLMapperBuilder
-    else class方式(注解)
-        XMLConfigBuilder -> Config: addMapper(mapperInterface)
-        note right of Config
-          通过Configuration间接加载
-          内部调用MapperAnnotationBuilder
-        end note
-        activate Config
-        Config -> MapperAnnotationBuilder: new MapperAnnotationBuilder(config, mapperInterface)
-        activate MapperAnnotationBuilder
-
-        MapperAnnotationBuilder -> MapperAnnotationBuilder: parse()
-
-        loop for each annotated method
-            MapperAnnotationBuilder -> Config: addMappedStatement(...)
-        end
-
-        deactivate MapperAnnotationBuilder
-        deactivate Config
-    end
-end
-
-XMLConfigBuilder --> User: Configuration
-
-deactivate XMLConfigBuilder
-
-== 2. MappedStatement 构建过程（详细）==
-
-note over XMLMapperBuilder
-  ★ MappedStatement包含:
-  - id: 语句ID
-  - sqlCommandType: SQL类型
-  - sqlSource: SQL源码对象
-  - parameterMap: 参数映射
-  - resultMaps: 结果映射
-  - cache: 二级缓存
-end note
-
-XMLMapperBuilder -> XMLMapperBuilder: parseStatementNodes()
-
-loop for each statementNode
-    alt 获取SQL源码
-        XMLMapperBuilder -> SqlSourceBuilder: parseScriptNode(node)
-        note right of SqlSourceBuilder
-          解析SQL文本
-          构建SqlSource对象
-        end note
-    else 构建MappedStatement
-        XMLMapperBuilder -> MappedStatement: Builder(configuration, id, sqlSource, sqlCommandType).build()
-    else 注册到Configuration
-        XMLMapperBuilder -> MapperBuilderAssistant: addMappedStatement(mappedStatement)
-    end
-end
-
-== 3. ResultMap 解析流程（详细）==
-
-note over XMLMapperBuilder
-  ★ ResultMap作用:
-  - 映射列名到属性名
-  - 处理类型转换
-  - 处理嵌套结果
-  - 处理构造方法
-end note
-
-XMLMapperBuilder -> XMLMapperBuilder: resultMapElement(resultMapNode)
-
-loop for each resultMapping
-    alt 构建ResultMapping
-        XMLMapperBuilder -> XMLMapperBuilder: buildResultMapping(...)
-    end
-end
-
-alt 添加到Configuration
-    XMLMapperBuilder -> MapperBuilderAssistant: addResultMap(resultMap)
-end
+ConfigBuilder --> User: Configuration
+deactivate ConfigBuilder
 
 note over User
-  ★ 配置文件解析顺序:
-  1. properties → settings
-  2. typeAliases → plugins
-  3. objectFactory → objectWrapperFactory
-  4. environments → mappers
-
-  ★ Mapper.xml解析内容:
-  1. <cache> - 二级缓存配置
-  2. <cache-ref> - 引用其他缓存
-  3. <resultMap> - 结果映射
-  4. <select/insert/update/delete> - SQL语句
+  解析顺序以 XMLConfigBuilder.parseConfiguration() 为准:
+  properties -> settings -> typeAliases -> plugins
+  -> objectFactory/objectWrapperFactory/reflectorFactory
+  -> environments -> databaseIdProvider -> typeHandlers -> mappers
 end note
 
 @enduml

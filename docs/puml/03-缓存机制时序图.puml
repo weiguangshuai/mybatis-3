@@ -3,279 +3,155 @@ title MyBatis 缓存机制时序图
 hide footbox
 
 actor 用户 as User
-participant ":SqlSession" as SqlSession
+participant ":DefaultSqlSession" as SqlSession
 participant ":CachingExecutor" as CachingExec
 participant ":TransactionalCacheManager" as TCM
 participant ":TransactionalCache" as TC
 participant ":BaseExecutor" as BaseExec
-participant ":PerpetualCache" as LocalCache
+participant ":PerpetualCache(LocalCache)" as LocalCache
+participant ":Transaction" as Transaction
 
-note over User, SqlSession
-  ★ 一级缓存特点:
-  - 作用域: SqlSession级别
-  - 存储: BaseExecutor中的PerpetualCache
-  - 失效: SqlSession关闭、commit、clearCache
+== 1. 一级缓存（SqlSession 级别） ==
+
+note over BaseExec, LocalCache
+  一级缓存位于 BaseExecutor.localCache
+  生命周期默认与 SqlSession 一致
+  localCacheScope=STATEMENT 时会在语句结束后清空
 end note
 
-== 1. 一级缓存（本地缓存）流程 ==
+User -> SqlSession: selectList(statement, parameter)
+SqlSession -> CachingExec: query(ms, parameter, rowBounds, handler)
+CachingExec -> BaseExec: query(ms, parameter, rowBounds, handler, key, boundSql)
+activate BaseExec
 
-User -> SqlSession: selectOne("statement", param)
-note right of User
-  用户执行查询操作
-end note
-
-SqlSession -> BaseExec: query(ms, param, rowBounds, handler)
-note right of SqlSession
-  查询请求转发到BaseExecutor
-end note
-
-alt 第一次查询 缓存未命中
-    BaseExec -> BaseExec: clearLocalCache() if flushCacheRequired
-    note right of BaseExec
-      如果需要刷新缓存
-      先清空一级缓存
-    end note
-
-    BaseExec -> BaseExec: localCache.getObject(key)
-    note right of BaseExec
-      从PerpetualCache
-      获取缓存Key对应的值
-    end note
-
-    alt 缓存未命中
-        BaseExec -> BaseExec: queryFromDatabase(...)
-        note right of BaseExec
-          缓存未命中
-          需要查询数据库
-        end note
-        activate BaseExec
-        BaseExec -> BaseExec: (实际执行SQL查询)
-        note right of BaseExec
-          详细流程:
-          1. 获取数据库连接
-          2. 创建Statement
-          3. 执行查询
-          4. 处理结果集
-        end note
-
-        BaseExec --> BaseExec: return results
-        deactivate BaseExec
-
-        BaseExec -> LocalCache: putObject(key, list)
-        note right of BaseExec
-          查询完成后
-          将结果存入一级缓存
-          key = statementId + 参数 + rowBounds
-        end note
-        LocalCache --> BaseExec: void
-    end
-else 后续查询 缓存命中
-    BaseExec -> LocalCache: getObject(key)
-    note right of BaseExec
-      从缓存中获取
-    end note
-    LocalCache --> BaseExec: cachedResults
-    BaseExec --> SqlSession: cachedResults
+alt queryStack==0 && flushCacheRequired=true
+  BaseExec -> BaseExec: clearLocalCache()
 end
 
+alt resultHandler==null 且一级缓存命中
+  BaseExec -> LocalCache: getObject(key)
+  LocalCache --> BaseExec: cachedList
+  BaseExec --> CachingExec: cachedList
+else 一级缓存未命中 / 使用自定义ResultHandler
+  BaseExec -> LocalCache: getObject(key)
+  LocalCache --> BaseExec: null
+  BaseExec -> LocalCache: putObject(key, EXECUTION_PLACEHOLDER)
+  BaseExec -> BaseExec: doQuery(...)
+  BaseExec -> LocalCache: putObject(key, freshList)
+  note right of BaseExec
+    CacheKey 由以下内容组成:
+    statementId / offset / limit / SQL / 参数值 / environmentId
+  end note
+  BaseExec --> CachingExec: freshList
+end
+
+alt localCacheScope == STATEMENT
+  BaseExec -> BaseExec: clearLocalCache()
+end
+
+deactivate BaseExec
+CachingExec --> SqlSession: results
 SqlSession --> User: results
 
-== 2. 二级缓存（全局缓存）流程 ==
+== 2. 二级缓存（Mapper Namespace 级别） ==
 
-note over SqlSession, CachingExec
-  ★ 二级缓存特点:
-  - 作用域: Mapper Namespace级别
-  - 存储: 各Mapper的Cache区域
-  - 失效: Mapper namespace配置刷新、commit
-  - 需要手动开启: <cache/>
+note over CachingExec, TCM
+  二级缓存的命中前提:
+  1. MappedStatement 配置了 cache
+  2. useCache = true
+  3. resultHandler == null
 end note
 
-SqlSession -> CachingExecutor: query(ms, param, rowBounds, handler)
-activate CachingExecutor
+User -> SqlSession: selectList(namespace.statement, parameter)
+SqlSession -> CachingExec: query(ms, parameter, rowBounds, handler)
+activate CachingExec
+CachingExec -> CachingExec: flushCacheIfRequired(ms)
 
-CachingExecutor -> CachingExecutor: createCacheKey(ms, param, rowBounds, boundSql)
-note right of CachingExecutor
-  创建缓存Key
-  格式: namespace + statementId + params + bounds
-end note
+alt cache != null && useCache=true && resultHandler==null
+  CachingExec -> TCM: getObject(cache, key)
+  TCM -> TC: getObject(key)
+  TC --> TCM: cachedList / null
 
-alt Mapper配置了二级缓存
-    CachingExecutor -> TCM: getObject(cache, key)
+  alt 二级缓存命中
+    TCM --> CachingExec: cachedList
+    CachingExec --> SqlSession: cachedList
+  else 二级缓存未命中
+    TCM --> CachingExec: null
+    CachingExec -> BaseExec: query(ms, parameter, rowBounds, handler, key, boundSql)
+    activate BaseExec
+    BaseExec --> CachingExec: freshList
+    deactivate BaseExec
+    CachingExec -> TCM: putObject(cache, key, freshList)
     note right of TCM
-      从TransactionalCacheManager
-      获取缓存
+      这里只放入 TransactionalCache
+      提交事务时才真正写入底层缓存
     end note
-    activate TCM
-    TCM -> TC: getObject(key)
-    TC --> TCM: cachedList
-    TCM --> CachingExecutor: cachedList
-    deactivate TCM
-
-    alt 缓存存在 命中
-        CachingExecutor --> SqlSession: cachedList
-        note right of SqlSession
-          直接返回缓存结果
-          跳过数据库查询
-        end note
-        SqlSession --> User: cachedList
-
-    else 缓存不存在 未命中
-        CachingExecutor -> BaseExecutor: query(...)
-        note right of BaseExecutor
-          转发给BaseExecutor
-          执行真正的查询
-        end note
-        activate BaseExecutor
-        BaseExec -> BaseExec: (查询数据库)
-        note right of BaseExecutor
-          先查一级缓存
-          如果未命中则查数据库
-        end note
-
-        BaseExec --> CachingExecutor: freshList
-        deactivate BaseExecutor
-
-        CachingExecutor -> TCM: putObject(cache, key, freshList)
-        note right of CachingExecutor
-          放入事务缓存
-          暂不直接放入二级缓存
-        end note
-        activate TCM
-        TCM -> TC: putObject(key, freshList)
-        note right of TC
-          只是放入pending队列
-          等commit时真正写入
-        end note
-        TCM --> CachingExecutor: void
-        deactivate TCM
-
-        CachingExecutor --> SqlSession: freshList
-        SqlSession --> User: freshList
-    end
-else Mapper未配置二级缓存
-    CachingExecutor -> BaseExecutor: query(...)
-    note right of CachingExecutor
-      直接跳过二级缓存
-    end note
-    activate BaseExecutor
-    BaseExec --> CachingExecutor: results
-    deactivate BaseExecutor
-    CachingExecutor --> SqlSession: results
-    SqlSession --> User: results
+    TCM -> TC: putObject(key, freshList)
+    TC --> TCM: pending write
+    CachingExec --> SqlSession: freshList
+  end
+else 未配置二级缓存 / useCache=false / 自定义ResultHandler
+  CachingExec -> BaseExec: query(ms, parameter, rowBounds, handler, key, boundSql)
+  activate BaseExec
+  BaseExec --> CachingExec: results
+  deactivate BaseExec
+  CachingExec --> SqlSession: results
 end
 
-deactivate CachingExecutor
+deactivate CachingExec
+SqlSession --> User: results
 
-== 3. 缓存清理流程（update/delete/insert） ==
+== 3. 更新语句与缓存清理 ==
 
-note over User, SqlSession
-  当执行增删改操作时
-  相关Mapper的二级缓存会被清除
-end note
+User -> SqlSession: update(statement, parameter)
+SqlSession -> CachingExec: update(ms, parameter)
+activate CachingExec
+CachingExec -> CachingExec: flushCacheIfRequired(ms)
 
-User -> SqlSession: update("statement", param)
-note right of User
-  用户执行更新操作
-end note
-
-SqlSession -> CachingExecutor: update(ms, parameter)
-activate CachingExecutor
-
-CachingExecutor -> CachingExecutor: flushCacheIfRequired(ms)
-note right of CachingExecutor
-  检查是否需要刷新缓存
-  根据MappedStatement的flushCache配置
-end note
-
-alt flushCacheRequired=true
-    CachingExecutor -> TCM: clear(cache)
-    note right of TCM
-      清除该Mapper的二级缓存
-    end note
-    activate TCM
-    TCM -> TC: clear()
-    note right of TC
-      清除pending队列
-      和已提交的缓存数据
-    end note
-    TCM --> CachingExecutor: void
-    deactivate TCM
+alt cache != null && flushCacheRequired=true
+  CachingExec -> TCM: clear(cache)
+  TCM -> TC: clear()
+  note right of TC
+    clear() 先标记 clearOnCommit
+    真正清底层缓存发生在 commit()
+  end note
 end
 
-CachingExecutor -> BaseExecutor: update(ms, parameter)
-note right of CachingExecutor
-  执行实际的更新操作
-end note
-activate BaseExecutor
-
-BaseExecutor -> BaseExecutor: clearLocalCache()
-note right of BaseExecutor
-  清除一级缓存
-end note
-
-BaseExecutor -> BaseExecutor: doUpdate(ms, parameter)
-note right of BaseExecutor
-  执行SQL更新操作
-end note
-
-BaseExecutor --> CachingExecutor: rows
-deactivate BaseExecutor
-
-CachingExecutor --> SqlSession: rows
-deactivate CachingExecutor
-
+CachingExec -> BaseExec: update(ms, parameter)
+activate BaseExec
+BaseExec -> BaseExec: clearLocalCache()
+BaseExec -> BaseExec: doUpdate(ms, parameter)
+BaseExec --> CachingExec: rows
+deactivate BaseExec
+CachingExec --> SqlSession: rows
+deactivate CachingExec
 SqlSession --> User: rows
 
-== 4. 事务提交与缓存同步 ==
-
-note over SqlSession
-  事务提交时:
-  1. BaseExecutor执行commit
-  2. TCM执行commit
-  3. Pending数据写入二级缓存
-end note
+== 4. 事务提交与二级缓存同步 ==
 
 User -> SqlSession: commit()
-SqlSession -> SqlSession: commit()
-SqlSession -> CachingExecutor: commit(required)
-activate CachingExecutor
+SqlSession -> CachingExec: commit(required)
+activate CachingExec
+CachingExec -> BaseExec: commit(required)
+activate BaseExec
+BaseExec -> BaseExec: clearLocalCache()
+BaseExec -> BaseExec: flushStatements()
+alt required=true
+  BaseExec -> Transaction: commit()
+end
+BaseExec --> CachingExec: void
+deactivate BaseExec
 
-CachingExecutor -> BaseExecutor: commit(required)
-note right of BaseExecutor
-  先提交一级事务
-end note
-activate BaseExecutor
-BaseExecutor -> BaseExecutor: transaction.commit()
-BaseExecutor --> CachingExecutor: void
-deactivate BaseExecutor
-
-CachingExecutor -> TCM: commit()
-note right of TCM
-  提交事务缓存
-  将pending数据写入二级缓存
-end note
-activate TCM
+CachingExec -> TCM: commit()
 TCM -> TC: commit()
 note right of TC
-  遍历pending队列
-  将数据写入实际Cache
+  commit() 会:
+  1. clearOnCommit 时先 clear delegate
+  2. 刷新待写入 entriesToAddOnCommit
 end note
-deactivate TCM
 
-CachingExecutor --> SqlSession: void
-deactivate CachingExecutor
-
+CachingExec --> SqlSession: void
+deactivate CachingExec
 SqlSession --> User: commit complete
-
-note over LocalCache, TC
-  缓存查找顺序:
-  1. 先查二级缓存 (CachingExecutor)
-  2. 未命中查一级缓存 (BaseExecutor)
-  3. 都未命中查数据库
-
-  缓存写入顺序:
-  1. 先写入一级缓存
-  2. 事务提交后写入二级缓存
-end note
 
 @enduml

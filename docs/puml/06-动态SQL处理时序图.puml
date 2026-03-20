@@ -2,272 +2,123 @@
 title MyBatis 动态SQL处理时序图
 hide footbox
 
-participant ":SqlSource" as SqlSource
+actor 开发者 as User
+participant ":XMLScriptBuilder" as ScriptBuilder
 participant ":MixedSqlNode" as MixedSqlNode
-participant ":SqlNode" as SqlNode
-participant ":DynamicContext" as DynamicContext
-participant ":XMLScriptBuilder" as XMLScriptBuilder
-participant ":ExpressionEvaluator" as Evaluator
-participant ":OgnlCache" as OgnlCache
 participant ":IfSqlNode" as IfSqlNode
 participant ":ForEachSqlNode" as ForEachSqlNode
-participant ":WhereSqlNode" as WhereSqlNode
-participant ":SetSqlNode" as SetSqlNode
 participant ":TrimSqlNode" as TrimSqlNode
 participant ":TextSqlNode" as TextSqlNode
+participant ":StaticTextSqlNode" as StaticTextSqlNode
+participant ":DynamicSqlSource" as DynamicSqlSource
+participant ":RawSqlSource" as RawSqlSource
+participant ":DynamicContext" as DynamicContext
+participant ":OgnlCache / ExpressionEvaluator" as OgnlEvaluator
+participant ":SqlSourceBuilder" as SqlSourceBuilder
 participant ":BoundSql" as BoundSql
-participant ":ParameterHandler" as ParameterHandler
-participant ":ResultSetHandler" as ResultSetHandler
+participant ":DefaultParameterHandler" as ParameterHandler
 participant ":PreparedStatement" as PS
 
-note over SqlSource
-  ★ 解析时机:
-  MyBatis初始化阶段
-  XMLMapperBuilder.parseStatementNodes()
-end note
+== 1. 初始化阶段：构建 SqlSource ==
 
-== 1. 动态SQL解析阶段（初始化时）==
+User -> ScriptBuilder: parseScriptNode()
+activate ScriptBuilder
+ScriptBuilder -> ScriptBuilder: parseDynamicTags(context)
 
-XMLScriptBuilder -> XMLScriptBuilder: parseScriptNode(node)
-note right of XMLScriptBuilder
-  解析XML中的SQL片段
-  构建SqlSource对象
-end note
-
-alt 动态SQL（包含${}或动态标签）
-    XMLScriptBuilder -> MixedSqlNode: new MixedSqlNode(contents)
-    note right of MixedSqlNode
-      创建MixedSqlNode
-      包含所有SQL节点
-    end note
-    activate MixedSqlNode
-
-    loop for each content (SqlNode)
-        alt if标签
-            XMLScriptBuilder -> IfSqlNode: new IfSqlNode(mixedSqlNode, test)
-        else foreach标签
-            XMLScriptBuilder -> ForEachSqlNode: new ForEachSqlNode(mixedSqlNode, collection, item, ...)
-        else where标签
-            XMLScriptBuilder -> WhereSqlNode: new WhereSqlNode(mixedSqlNode)
-        else set标签
-            XMLScriptBuilder -> SetSqlNode: new SetSqlNode(mixedSqlNode)
-        else trim标签
-            XMLScriptBuilder -> TrimSqlNode: new TrimSqlNode(mixedSqlNode, prefix, prefixOverrides, ...)
-        else 文本节点
-            XMLScriptBuilder -> TextSqlNode: new TextSqlNode(sqlText)
-        end
-    end
-
-    XMLScriptBuilder -> SqlSource: DynamicSqlSource
-    note right of SqlSource
-      创建动态SQL源
-      运行时解析
-    end note
-    XMLScriptBuilder --> SqlSource: DynamicSqlSource
-
-else 静态SQL（无${}和动态标签）
-    XMLScriptBuilder -> SqlSource: RawSqlSource
-    note right of SqlSource
-      创建静态SQL源
-      直接使用无需解析
-    end note
-    XMLScriptBuilder --> SqlSource: RawSqlSource
+loop 遍历 SQL 节点
+  alt 文本节点且包含 ${}
+    ScriptBuilder -> TextSqlNode: new TextSqlNode(text)
+    TextSqlNode -> TextSqlNode: isDynamic()
+  else 纯文本节点
+    ScriptBuilder -> StaticTextSqlNode: new StaticTextSqlNode(text)
+  else if / when
+    ScriptBuilder -> IfSqlNode: new IfSqlNode(contents, test)
+  else foreach
+    ScriptBuilder -> ForEachSqlNode: new ForEachSqlNode(configuration, contents, collection, nullable, index, item, open, close, separator)
+  else where / set / trim
+    ScriptBuilder -> TrimSqlNode: new WhereSqlNode / SetSqlNode / TrimSqlNode(...)
+  end
 end
 
-== 2. 动态SQL执行阶段（运行时）==
+ScriptBuilder -> MixedSqlNode: new MixedSqlNode(contents)
 
-note over SqlSource
-  ★ 执行时机:
-  每次执行SQL时
-  CachingExecutor.query() -> MappedStatement.getBoundSql()
-end note
+alt isDynamic == true
+  ScriptBuilder -> DynamicSqlSource: new DynamicSqlSource(configuration, rootSqlNode)
+  ScriptBuilder --> User: DynamicSqlSource
+else isDynamic == false
+  ScriptBuilder -> RawSqlSource: new RawSqlSource(configuration, rootSqlNode, parameterType)
+  ScriptBuilder --> User: RawSqlSource
+end
 
-SqlSource -> SqlSource: getBoundSql(parameterObject)
-note right of SqlSource
-  获取绑定的SQL
-  将动态SQL解析为可执行SQL
-end note
-activate SqlSource
+deactivate ScriptBuilder
 
-SqlSource -> DynamicContext: new DynamicContext(configuration, parameterObject)
-note right of DynamicContext
-  创建动态上下文
-  传入参数对象
-  内部使用BindingContext包装参数
-end note
-activate DynamicContext
+== 2. 运行时：DynamicSqlSource.getBoundSql() ==
 
-SqlSource -> MixedSqlNode: applyAll(dynamicContext)
-note right of MixedSqlNode
-  应用所有SQL节点
-  构建最终SQL
-end note
+User -> DynamicSqlSource: getBoundSql(parameterObject)
+activate DynamicSqlSource
+DynamicSqlSource -> DynamicContext: new DynamicContext(configuration, parameterObject)
+DynamicSqlSource -> MixedSqlNode: apply(context)
 activate MixedSqlNode
 
-loop for each SqlNode in contents
-    MixedSqlNode -> SqlNode: apply(context)
-    note right of SqlNode
-      执行每个SqlNode
-      生成对应的SQL片段
+loop 遍历运行时 SqlNode
+  alt IfSqlNode
+    MixedSqlNode -> IfSqlNode: apply(context)
+    IfSqlNode -> OgnlEvaluator: evaluateBoolean(test, context.bindings)
+    alt 条件成立
+      IfSqlNode -> DynamicContext: appendSql(child sql)
+    end
+  else ForEachSqlNode
+    MixedSqlNode -> ForEachSqlNode: apply(context)
+    ForEachSqlNode -> OgnlEvaluator: evaluateIterable(collectionExpression, bindings, nullable)
+    ForEachSqlNode -> DynamicContext: appendSql(open)
+    note right of ForEachSqlNode
+      foreach 会为 item/index 绑定变量，
+      并生成带唯一编号的参数名
     end note
-
-    alt IfSqlNode - if条件判断
-        SqlNode -> Evaluator: evaluateBoolean(test, parameterObject)
-        Evaluator -> OgnlCache: getValue(test, parameterObject)
-        OgnlCache --> Evaluator: value
-        Evaluator --> SqlNode: true/false
-
-        alt 条件为true
-            SqlNode -> SqlNode: apply child nodes
-            note right of SqlNode
-              条件成立
-              SQL片段生效
-            end note
-        end
-    end
-
-    alt ForEachSqlNode - foreach循环
-        SqlNode -> SqlNode: apply(context)
-        SqlNode -> Evaluator: evaluateIterable(collection)
-        note right of SqlNode
-          获取集合迭代器
-          支持List、Array、Map等
-        end note
-
-        loop for each item
-            SqlNode -> DynamicContext: appendSql(item)
-        end
-    end
-
-    alt WhereSqlNode - where条件处理
-        SqlNode -> SqlNode: apply(context)
-        SqlNode -> SqlNode: trimLeftWhitespace()
-    end
-
-    alt SetSqlNode - set处理
-        SqlNode -> SqlNode: apply(context)
-        SqlNode -> SqlNode: trimRightComma()
-    end
-
-    alt TrimSqlNode - 自定义trim
-        SqlNode -> SqlNode: apply(context)
-        SqlNode -> SqlNode: trim(prefix, prefixOverrides, suffix, suffixOverrides)
-    end
-
-    alt TextSqlNode - 文本处理
-        SqlNode -> SqlNode: apply(context)
-
-        alt 包含${}变量
-            SqlNode -> OgnlCache: getValue(expression, context.bindings)
-            OgnlCache --> SqlNode: resolvedValue
-            SqlNode -> DynamicContext: appendSql(resolvedValue)
-        else 纯文本
-            SqlNode -> DynamicContext: appendSql(text)
-        end
-    end
+    ForEachSqlNode -> DynamicContext: appendSql(item sql + separator + close)
+  else Where / Set / Trim
+    MixedSqlNode -> TrimSqlNode: apply(filteredContext)
+    note right of TrimSqlNode
+      WhereSqlNode / SetSqlNode
+      都是 TrimSqlNode 的特化实现
+    end note
+  else TextSqlNode
+    MixedSqlNode -> TextSqlNode: apply(context)
+    TextSqlNode -> OgnlEvaluator: getValue(${expr}, bindings)
+    TextSqlNode -> DynamicContext: appendSql(text / resolvedValue)
+  else StaticTextSqlNode
+    MixedSqlNode -> StaticTextSqlNode: apply(context)
+    StaticTextSqlNode -> DynamicContext: appendSql(text)
+  end
 end
 
-MixedSqlNode --> SqlSource: void
 deactivate MixedSqlNode
+DynamicSqlSource -> DynamicContext: getSql()
+DynamicSqlSource -> DynamicContext: getBindings()
+DynamicSqlSource -> SqlSourceBuilder: parse(sql, parameterType, bindings)
+SqlSourceBuilder --> DynamicSqlSource: SqlSource
+DynamicSqlSource -> BoundSql: sqlSource.getBoundSql(parameterObject)
+DynamicSqlSource -> BoundSql: setAdditionalParameter(binding)
+DynamicSqlSource --> User: BoundSql
+deactivate DynamicSqlSource
 
-SqlSource -> DynamicContext: getSql()
-note right of DynamicContext
-  获取最终SQL字符串
-  (包含?占位符)
-end note
-DynamicContext --> SqlSource: sql
-deactivate DynamicContext
+== 3. 参数绑定阶段 ==
 
-SqlSource -> DynamicContext: getBindings()
-DynamicContext --> SqlSource: parameterMappings
-
-SqlSource -> BoundSql: new BoundSql(...)
-note right of BoundSql
-  创建BoundSql对象
-  存储最终SQL和参数映射
-end note
-activate BoundSql
-SqlSource --> BoundSql: BoundSql
-deactivate SqlSource
-
-== 3. 参数处理阶段（执行时）==
-
-note over BoundSql
-  ★ 参数绑定时机:
-  StatementHandler.prepare()之后
-  StatementHandler.parameterize()时
-end note
-
-ParameterHandler -> ParameterHandler: setParameters(PreparedStatement)
-note right of ParameterHandler
-  设置预编译语句参数
-end note
+User -> ParameterHandler: setParameters(ps)
 activate ParameterHandler
-
 ParameterHandler -> BoundSql: getParameterMappings()
-BoundSql --> ParameterHandler: List<ParameterMapping>
-
-loop for each parameterMapping
-    ParameterHandler -> ParameterHandler: getParameterValue()
-    ParameterHandler -> ParameterMapping: getTypeHandler()
-    ParameterHandler -> ParameterHandler: setNonNullParameter()
-    ParameterHandler -> PS: setXXX(i, value)
+loop 遍历 ParameterMapping
+  ParameterHandler -> ParameterHandler: 从 additionalParameters / parameterObject 取值
+  ParameterHandler -> PS: typeHandler.setParameter(i, value, jdbcType)
 end
-
-ParameterHandler --> PS: void
+ParameterHandler --> User: void
 deactivate ParameterHandler
 
-== 4. 结果处理阶段（返回时）==
-
-note over PS
-  ★ 结果映射时机:
-  Statement执行完成后
-  ResultSetHandler.handleResultSets()
-end note
-
-ResultSetHandler -> ResultSetHandler: handleResultSets(PreparedStatement)
-note right of ResultSetHandler
-  处理结果集
-  将ResultSet映射为Java对象
-end note
-activate ResultSetHandler
-
-ResultSetHandler -> ResultSetHandler: getFirstResultSet()
-
-loop for each ResultSet
-    ResultSetHandler -> ResultSetHandler: getResultSetMappings()
-
-    loop for each resultMapping
-        alt 简单属性映射
-            ResultSetHandler -> ResultSetHandler: getPropertyMappingValue()
-        else 嵌套查询映射
-            ResultSetHandler -> ResultSetHandler: getNestedQueryMappingValue()
-            ResultSetHandler -> ResultSetHandler: query nested statement
-        else 嵌套结果映射
-            ResultSetHandler -> ResultSetHandler: getNestedResultMappingValue()
-        end
-    end
-end
-
-ResultSetHandler -> ResultSetHandler: create result object
-ResultSetHandler -> ResultSetHandler: applyAutomaticMappings()
-ResultSetHandler -> ResultSetHandler: applyPropertyMappings()
-
-ResultSetHandler --> ResultSetHandler: List<ResultObject>
-deactivate ResultSetHandler
-
 note over User
-  MyBatis动态SQL标签:
-  1. <if test="...">: 条件判断
-  2. <choose>: 分支选择 (when/otherwise)
-  3. <where>: 智能WHERE
-  4. <set>: 智能SET
-  5. <foreach>: 循环遍历
-  6. <trim>: 自定义trim
-  7. <bind>: OGNL变量绑定
-  8. <include>: SQL片段引用
-  9. ${}: 字符串替换 (有SQL注入风险)
-  10. #{}: 参数占位符 (预编译,防注入)
+  关键点:
+  1. ${} 在 TextSqlNode.apply() 阶段直接拼接 SQL
+  2. #{} 在 SqlSourceBuilder.parse() 后变成 ParameterMappings
+  3. BoundSql 保存最终 SQL 与 additionalParameters
 end note
 
 @enduml

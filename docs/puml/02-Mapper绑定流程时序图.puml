@@ -3,181 +3,94 @@ title MyBatis Mapper 绑定流程时序图
 hide footbox
 
 actor 用户 as User
-participant ":SqlSession" as SqlSession
+participant ":DefaultSqlSession" as SqlSession
 participant ":Configuration" as Config
 participant ":MapperRegistry" as MapperRegistry
 participant ":MapperProxyFactory" as MapperProxyFactory
 participant ":MapperProxy" as MapperProxy
 participant ":MapperMethod" as MapperMethod
-participant ":CachingExecutor" as CachingExec
-participant ":Executor" as Executor
+participant ":JDK Proxy" as JdkProxy
 
-== 1. 获取Mapper阶段：创建代理对象 ==
+== 1. 获取 Mapper 代理对象 ==
 
 User -> SqlSession: getMapper(MapperInterface.class)
-note right of User
-  用户通过SqlSession
-  获取Mapper接口的实例
-  实际上是获取代理对象
-end note
-SqlSession -> Config: getMapper(type, sqlSession)
-note right of SqlSession
-  委托Configuration
-  调用MapperRegistry处理
-end note
-Config -> MapperRegistry: getMapper(type)
-note right of Config
-  根据接口类型
-  从knownMappers缓存中
-  获取MapperProxyFactory
-end note
-
+SqlSession -> Config: getMapper(type, this)
+Config -> MapperRegistry: getMapper(type, sqlSession)
+MapperRegistry -> MapperProxyFactory: knownMappers.get(type)
 MapperRegistry -> MapperProxyFactory: newInstance(sqlSession)
-note right of MapperRegistry
-  创建MapperProxy实例
-end note
 MapperProxyFactory -> MapperProxy: new MapperProxy(sqlSession, mapperInterface, methodCache)
-note right of MapperProxyFactory
-  初始化MapperProxy
-  - 保存SqlSession引用
-  - 保存Mapper接口
-  - 初始化方法缓存
-end note
-MapperProxy --> MapperProxyFactory: mapperProxy
-MapperProxyFactory --> SqlSession: mapperProxy
-SqlSession --> User: mapperProxy (动态代理对象)
+MapperProxyFactory -> JdkProxy: Proxy.newProxyInstance(...)
+JdkProxy --> MapperRegistry: mapperProxyInstance
+MapperRegistry --> Config: mapperProxyInstance
+Config --> SqlSession: mapperProxyInstance
+SqlSession --> User: mapperProxyInstance
 note right of User
-  返回JDK动态代理对象
-  实际类型是$Proxy$N
+  返回值是 JDK 动态代理对象
+  不是 MapperProxy 本身
 end note
 
-== 2. 执行Mapper方法阶段：代理拦截 ==
+== 2. 调用 Mapper 方法 ==
 
-User -> MapperProxy: mapper.method(params)
-note right of User
-  用户调用Mapper接口方法
-  触发invoke拦截
-end note
+User -> JdkProxy: mapper.method(args)
+JdkProxy -> MapperProxy: invoke(proxy, method, args)
 activate MapperProxy
 
-alt 调用Object方法
-    MapperProxy -> MapperProxy: equals/hashCode/toString
-    note right of MapperProxy
-      如果是Object的方法
-      直接调用原始方法
-    end note
-    MapperProxy --> User: result
+alt Object.class 方法
+  MapperProxy -> MapperProxy: method.invoke(this, args)
+  MapperProxy --> JdkProxy: result
+else default 方法
+  MapperProxy -> MapperProxy: cachedInvoker(method)
+  MapperProxy -> MapperProxy: getMethodHandleJava8/9(method)
+  MapperProxy -> MapperProxy: DefaultMethodInvoker.invoke(...)
+  MapperProxy --> JdkProxy: result
+else 普通 Mapper 方法
+  MapperProxy -> MapperProxy: cachedInvoker(method)
 
-else 调用Mapper接口方法
-    MapperProxy -> MapperProxy: cachedInvoker(method)
-    note right of MapperProxy
-      从methodCache缓存中
-      获取MapperMethodInvoker
-      使用MapUtil.computeIfAbsent()自动缓存
-      避免重复创建
-    end note
+  alt methodCache 未命中
+    MapperProxy -> MapperMethod: new MapperMethod(mapperInterface, method, configuration)
+    MapperMethod --> MapperProxy: MapperMethod
+  end
 
-    alt 缓存中不存在
-        MapperProxy -> MapperMethod: new MapperMethod(mapperInterface, method, config)
-        note right of MapperProxy
-          创建MapperMethod
-          - 解析方法签名
-          - 判断SQL命令类型
-          - 创建ParamNameResolver
-        end note
-        MapperMethod --> MapperProxy: MapperMethod
-        note right of MapperProxy
-          使用MapUtil.computeIfAbsent()
-          自动放入缓存
-        end note
-    end
+  MapperProxy -> MapperMethod: execute(sqlSession, args)
+  activate MapperMethod
 
-    MapperProxy -> MapperMethod: execute(sqlSession, args)
-    note right of MapperProxy
-      执行Mapper方法
-      传入SqlSession和参数
-    end note
-    activate MapperMethod
+  alt SELECT + returnsVoid + ResultHandler
+    MapperMethod -> SqlSession: select(statement, param, rowBounds?, resultHandler)
+    SqlSession --> MapperMethod: void
+    MapperMethod --> MapperProxy: null
+  else SELECT + returnsMany
+    MapperMethod -> SqlSession: selectList(statement, param, rowBounds?)
+    SqlSession --> MapperMethod: List
+    MapperMethod --> MapperProxy: List / Array / DeclaredCollection
+  else SELECT + returnsMap
+    MapperMethod -> SqlSession: selectMap(statement, param, mapKey, rowBounds?)
+    SqlSession --> MapperMethod: Map
+    MapperMethod --> MapperProxy: Map
+  else SELECT + returnsCursor
+    MapperMethod -> SqlSession: selectCursor(statement, param, rowBounds?)
+    SqlSession --> MapperMethod: Cursor
+    MapperMethod --> MapperProxy: Cursor
+  else SELECT + 单结果
+    MapperMethod -> SqlSession: selectOne(statement, param)
+    SqlSession --> MapperMethod: result
+    MapperMethod -> MapperMethod: Optional 包装(如需要)
+    MapperMethod --> MapperProxy: result
+  else INSERT / UPDATE / DELETE
+    MapperMethod -> SqlSession: insert/update/delete(statement, param)
+    SqlSession --> MapperMethod: rowCount
+    MapperMethod -> MapperMethod: rowCountResult(rowCount)
+    MapperMethod --> MapperProxy: returnValue
+  else FLUSH
+    MapperMethod -> SqlSession: flushStatements()
+    SqlSession --> MapperMethod: batchResults
+    MapperMethod --> MapperProxy: batchResults
+  end
 
-    alt SELECT操作
-        MapperMethod -> SqlSession: selectOne/selectList/selectMap/select/executeForCursor
-        note right of SqlSession
-          根据返回类型选择
-          - selectOne: 返回单条
-          - selectList: 返回列表
-          - selectMap: 返回Map
-          - executeForCursor: 返回Cursor
-        end note
-        activate SqlSession
-
-        SqlSession -> CachingExec: query(...)
-        note right of CachingExec
-          进入查询流程
-          参考SQL执行时序图
-        end note
-        activate CachingExec
-
-        CachingExec -> Executor: (执行查询流程，参考SQL执行时序图)
-        note right of Executor
-          详细流程:
-          1. CachingExecutor处理二级缓存
-          2. BaseExecutor处理一级缓存
-          3. SimpleExecutor执行SQL
-          4. ResultSetHandler映射结果
-        end note
-        Executor --> CachingExec: results
-        deactivate CachingExec
-
-        SqlSession --> MapperMethod: results
-        note right of MapperMethod
-          结果转换在executeForMany/executeForMap/executeForCursor
-          内部自动完成
-        end note
-        deactivate SqlSession
-
-        MapperMethod --> MapperProxy: return value
-
-    else INSERT操作
-        MapperMethod -> SqlSession: insert(statement, param)
-        note right of SqlSession
-          执行插入操作
-        end note
-        SqlSession --> MapperMethod: rows
-        note right of MapperMethod
-          返回影响行数
-        end note
-        MapperMethod --> MapperProxy: return value
-
-    else UPDATE操作
-        MapperMethod -> SqlSession: update(statement, param)
-        note right of SqlSession
-          执行更新操作
-        end note
-        SqlSession --> MapperMethod: rows
-        MapperMethod --> MapperProxy: return value
-
-    else DELETE操作
-        MapperMethod -> SqlSession: delete(statement, param)
-        note right of SqlSession
-          执行删除操作
-        end note
-        SqlSession --> MapperMethod: rows
-        MapperMethod --> MapperProxy: return value
-
-    else FLUSH操作
-        MapperMethod -> SqlSession: flushStatements()
-        note right of SqlSession
-          执行批处理刷新
-        end note
-        SqlSession --> MapperMethod: batchResults
-        MapperMethod --> MapperProxy: return value
-
-    end
-
-    deactivate MapperMethod
+  deactivate MapperMethod
+  MapperProxy --> JdkProxy: returnValue
 end
 
-MapperProxy --> User: return value
 deactivate MapperProxy
+JdkProxy --> User: returnValue
 
 @enduml
