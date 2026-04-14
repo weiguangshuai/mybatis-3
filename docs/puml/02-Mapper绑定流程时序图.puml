@@ -1,22 +1,88 @@
-@startuml MyBatis-Mapper-Binding流程
-title MyBatis Mapper 绑定流程时序图
+@startuml MyBatis-Mapper-Binding完整流程
+title MyBatis Mapper 完整绑定流程时序图
 hide footbox
 
 actor 用户 as User
-participant ":DefaultSqlSession" as SqlSession
+participant ":XMLConfigBuilder" as XMLConfigBuilder
+participant ":XMLMapperBuilder" as XMLMapperBuilder
 participant ":Configuration" as Config
 participant ":MapperRegistry" as MapperRegistry
+participant ":MapperAnnotationBuilder" as MapperAnnotationBuilder
+participant ":DefaultSqlSession" as SqlSession
 participant ":MapperProxyFactory" as MapperProxyFactory
 participant ":MapperProxy" as MapperProxy
+participant ":MapperMethodInvoker" as MethodInvoker
 participant ":MapperMethod" as MapperMethod
 participant ":JDK Proxy" as JdkProxy
 
-== 1. 获取 Mapper 代理对象 ==
+== 1. 初始化阶段：解析并绑定 Mapper ==
+
+User -> XMLConfigBuilder: parse()
+activate XMLConfigBuilder
+XMLConfigBuilder -> XMLConfigBuilder: parseConfiguration(/configuration)
+XMLConfigBuilder -> XMLConfigBuilder: mapperElement(<mappers>)
+
+alt <mapper resource="xxx.xml"> / <mapper url="...">
+  XMLConfigBuilder -> XMLMapperBuilder: new XMLMapperBuilder(...)
+  XMLConfigBuilder -> XMLMapperBuilder: parse()
+  activate XMLMapperBuilder
+  XMLMapperBuilder -> XMLMapperBuilder: configurationElement(/mapper)
+  XMLMapperBuilder -> Config: addLoadedResource(resource)
+  XMLMapperBuilder -> XMLMapperBuilder: bindMapperForNamespace()
+
+  alt namespace 可解析为 Mapper 接口
+    XMLMapperBuilder -> Config: hasMapper(boundType)
+    alt 尚未注册
+      XMLMapperBuilder -> Config: addLoadedResource("namespace:" + namespace)
+      XMLMapperBuilder -> Config: addMapper(boundType)
+      Config -> MapperRegistry: addMapper(boundType)
+      activate MapperRegistry
+      MapperRegistry -> MapperRegistry: knownMappers.put(type, new MapperProxyFactory<>(type))
+      MapperRegistry -> MapperAnnotationBuilder: new MapperAnnotationBuilder(config, type)
+      MapperRegistry -> MapperAnnotationBuilder: parse()
+      MapperAnnotationBuilder --> MapperRegistry: 注解解析完成
+      deactivate MapperRegistry
+    end
+  else namespace 不是接口
+    XMLMapperBuilder -> XMLMapperBuilder: 跳过绑定
+  end
+  deactivate XMLMapperBuilder
+else <mapper class="com.foo.Mapper">
+  XMLConfigBuilder -> Config: addMapper(type)
+  Config -> MapperRegistry: addMapper(type)
+  activate MapperRegistry
+  MapperRegistry -> MapperRegistry: knownMappers.put(type, new MapperProxyFactory<>(type))
+  MapperRegistry -> MapperAnnotationBuilder: new MapperAnnotationBuilder(config, type)
+  MapperRegistry -> MapperAnnotationBuilder: parse()
+  MapperAnnotationBuilder --> MapperRegistry: 注解解析完成
+  deactivate MapperRegistry
+else <package name="...">
+  XMLConfigBuilder -> Config: addMappers(package)
+  Config -> MapperRegistry: addMappers(package)
+  activate MapperRegistry
+  loop 扫描到的每个 mapperInterface
+    MapperRegistry -> MapperRegistry: addMapper(mapperInterface)
+    MapperRegistry -> MapperRegistry: knownMappers.put(type, new MapperProxyFactory<>(type))
+    MapperRegistry -> MapperAnnotationBuilder: new MapperAnnotationBuilder(config, type)
+    MapperRegistry -> MapperAnnotationBuilder: parse()
+    MapperAnnotationBuilder --> MapperRegistry: 注解解析完成
+  end
+  deactivate MapperRegistry
+end
+
+deactivate XMLConfigBuilder
+
+note right of MapperRegistry
+  绑定完成后，MapperRegistry.knownMappers 中
+  缓存了 Mapper 接口 -> MapperProxyFactory 的映射
+end note
+
+== 2. 运行时：获取 Mapper 代理对象 ==
 
 User -> SqlSession: getMapper(MapperInterface.class)
 SqlSession -> Config: getMapper(type, this)
 Config -> MapperRegistry: getMapper(type, sqlSession)
-MapperRegistry -> MapperProxyFactory: knownMappers.get(type)
+MapperRegistry -> MapperRegistry: knownMappers.get(type)
 MapperRegistry -> MapperProxyFactory: newInstance(sqlSession)
 MapperProxyFactory -> MapperProxy: new MapperProxy(sqlSession, mapperInterface, methodCache)
 MapperProxyFactory -> JdkProxy: Proxy.newProxyInstance(...)
@@ -24,12 +90,13 @@ JdkProxy --> MapperRegistry: mapperProxyInstance
 MapperRegistry --> Config: mapperProxyInstance
 Config --> SqlSession: mapperProxyInstance
 SqlSession --> User: mapperProxyInstance
+
 note right of User
   返回值是 JDK 动态代理对象
   不是 MapperProxy 本身
 end note
 
-== 2. 调用 Mapper 方法 ==
+== 3. 运行时：调用 Mapper 方法 ==
 
 User -> JdkProxy: mapper.method(args)
 JdkProxy -> MapperProxy: invoke(proxy, method, args)
@@ -40,53 +107,59 @@ alt Object.class 方法
   MapperProxy --> JdkProxy: result
 else default 方法
   MapperProxy -> MapperProxy: cachedInvoker(method)
-  MapperProxy -> MapperProxy: getMethodHandleJava8/9(method)
-  MapperProxy -> MapperProxy: DefaultMethodInvoker.invoke(...)
+  MapperProxy -> MethodInvoker: DefaultMethodInvoker(MethodHandle)
+  MethodInvoker -> MethodInvoker: invoke(proxy, method, args, sqlSession)
+  MethodInvoker --> MapperProxy: result
   MapperProxy --> JdkProxy: result
 else 普通 Mapper 方法
   MapperProxy -> MapperProxy: cachedInvoker(method)
 
   alt methodCache 未命中
     MapperProxy -> MapperMethod: new MapperMethod(mapperInterface, method, configuration)
-    MapperMethod --> MapperProxy: MapperMethod
+    MapperProxy -> MethodInvoker: new PlainMethodInvoker(mapperMethod)
+    MethodInvoker --> MapperProxy: invoker
+  else methodCache 命中
+    MapperProxy -> MethodInvoker: 复用缓存 invoker
   end
 
-  MapperProxy -> MapperMethod: execute(sqlSession, args)
+  MapperProxy -> MethodInvoker: invoke(proxy, method, args, sqlSession)
+  MethodInvoker -> MapperMethod: execute(sqlSession, args)
   activate MapperMethod
 
   alt SELECT + returnsVoid + ResultHandler
     MapperMethod -> SqlSession: select(statement, param, rowBounds?, resultHandler)
     SqlSession --> MapperMethod: void
-    MapperMethod --> MapperProxy: null
+    MapperMethod --> MethodInvoker: null
   else SELECT + returnsMany
     MapperMethod -> SqlSession: selectList(statement, param, rowBounds?)
     SqlSession --> MapperMethod: List
-    MapperMethod --> MapperProxy: List / Array / DeclaredCollection
+    MapperMethod --> MethodInvoker: List / Array / DeclaredCollection
   else SELECT + returnsMap
     MapperMethod -> SqlSession: selectMap(statement, param, mapKey, rowBounds?)
     SqlSession --> MapperMethod: Map
-    MapperMethod --> MapperProxy: Map
+    MapperMethod --> MethodInvoker: Map
   else SELECT + returnsCursor
     MapperMethod -> SqlSession: selectCursor(statement, param, rowBounds?)
     SqlSession --> MapperMethod: Cursor
-    MapperMethod --> MapperProxy: Cursor
+    MapperMethod --> MethodInvoker: Cursor
   else SELECT + 单结果
     MapperMethod -> SqlSession: selectOne(statement, param)
     SqlSession --> MapperMethod: result
     MapperMethod -> MapperMethod: Optional 包装(如需要)
-    MapperMethod --> MapperProxy: result
+    MapperMethod --> MethodInvoker: result
   else INSERT / UPDATE / DELETE
     MapperMethod -> SqlSession: insert/update/delete(statement, param)
     SqlSession --> MapperMethod: rowCount
     MapperMethod -> MapperMethod: rowCountResult(rowCount)
-    MapperMethod --> MapperProxy: returnValue
+    MapperMethod --> MethodInvoker: returnValue
   else FLUSH
     MapperMethod -> SqlSession: flushStatements()
     SqlSession --> MapperMethod: batchResults
-    MapperMethod --> MapperProxy: batchResults
+    MapperMethod --> MethodInvoker: batchResults
   end
 
   deactivate MapperMethod
+  MethodInvoker --> MapperProxy: returnValue
   MapperProxy --> JdkProxy: returnValue
 end
 

@@ -1,5 +1,5 @@
 /*
- *    Copyright 2009-2022 the original author or authors.
+ *    Copyright 2009-2026 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -15,6 +15,11 @@
  */
 package org.apache.ibatis.datasource.pooled;
 
+import org.apache.ibatis.datasource.unpooled.UnpooledDataSource;
+import org.apache.ibatis.logging.Log;
+import org.apache.ibatis.logging.LogFactory;
+
+import javax.sql.DataSource;
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
@@ -29,12 +34,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
 
-import javax.sql.DataSource;
-
-import org.apache.ibatis.datasource.unpooled.UnpooledDataSource;
-import org.apache.ibatis.logging.Log;
-import org.apache.ibatis.logging.LogFactory;
-
 /**
  * This is a simple, synchronous, thread-safe database connection pool.
  *
@@ -42,64 +41,97 @@ import org.apache.ibatis.logging.LogFactory;
  */
 public class PooledDataSource implements DataSource {
 
-  /** 日志记录器 */
+  /**
+   * 日志记录器
+   */
   private static final Log log = LogFactory.getLog(PooledDataSource.class);
 
-  /** 连接池状态，包含活跃连接和空闲连接列表 */
+  /**
+   * 连接池状态，包含活跃连接和空闲连接列表
+   */
   private final PoolState state = new PoolState(this);
 
-  /** 底层非池化数据源，用于创建实际数据库连接 */
+  /**
+   * 底层非池化数据源，用于创建实际数据库连接
+   */
   private final UnpooledDataSource dataSource;
 
   // OPTIONAL CONFIGURATION FIELDS
 
-  /** 池中最大活跃连接数 */
+  /**
+   * 池中最大活跃连接数
+   */
   protected int poolMaximumActiveConnections = 10;
 
-  /** 池中最大空闲连接数 */
+  /**
+   * 池中最大空闲连接数
+   */
   protected int poolMaximumIdleConnections = 5;
 
-  /** 连接最大检出时间（毫秒），超过此时间可被强制回收 */
+  /**
+   * 连接最大检出时间（毫秒），超过此时间可被强制回收
+   */
   protected int poolMaximumCheckoutTime = 20000;
 
-  /** 获取连接等待超时时间（毫秒） */
+  /**
+   * 获取连接等待超时时间（毫秒）
+   */
   protected int poolTimeToWait = 20000;
 
-  /** 单线程允许的最大坏连接容忍次数 */
+  /**
+   * 单线程允许的最大坏连接容忍次数
+   */
   protected int poolMaximumLocalBadConnectionTolerance = 3;
 
-  /** 连接检测查询语句 */
+  /**
+   * 连接检测查询语句
+   */
   protected String poolPingQuery = "NO PING QUERY SET";
 
-  /** 是否启用连接检测 */
+  /**
+   * 是否启用连接检测
+   */
   protected boolean poolPingEnabled;
 
-  /** 连接未使用超过此时间（毫秒）则执行检测 */
+  /**
+   * 连接未使用超过此时间（毫秒）则执行检测
+   */
   protected int poolPingConnectionsNotUsedFor;
 
-  /** 期望的连接类型代码，用于验证连接有效性 */
+  /**
+   * 期望的连接类型代码，用于验证连接有效性
+   */
   private int expectedConnectionTypeCode;
 
-  /** 线程锁，用于同步连接池操作 */
+  /**
+   * 线程锁，用于同步连接池操作
+   */
   private final Lock lock = new ReentrantLock();
 
-  /** 条件变量，用于等待可用连接 */
+  /**
+   * 条件变量，用于等待可用连接
+   */
   private final Condition condition = lock.newCondition();
 
-  /** 默认构造函数，使用默认的UnpooledDataSource */
+  /**
+   * 默认构造函数，使用默认的UnpooledDataSource
+   */
   public PooledDataSource() {
     dataSource = new UnpooledDataSource();
   }
 
-  /** 使用指定的UnpooledDataSource初始化连接池 */
+  /**
+   * 使用指定的UnpooledDataSource初始化连接池
+   */
   public PooledDataSource(UnpooledDataSource dataSource) {
     this.dataSource = dataSource;
   }
 
   /**
    * 使用JDBC驱动参数创建连接池
-   * @param driver JDBC驱动类名
-   * @param url 数据库连接URL
+   *
+   * @param driver   JDBC驱动类名
+   * @param url      数据库连接URL
    * @param username 用户名
    * @param password 密码
    */
@@ -110,8 +142,9 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 使用JDBC驱动参数和属性创建连接池
-   * @param driver JDBC驱动类名
-   * @param url 数据库连接URL
+   *
+   * @param driver           JDBC驱动类名
+   * @param url              数据库连接URL
    * @param driverProperties 驱动属性
    */
   public PooledDataSource(String driver, String url, Properties driverProperties) {
@@ -121,11 +154,12 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 使用自定义类加载器创建连接池
+   *
    * @param driverClassLoader 驱动类加载器
-   * @param driver JDBC驱动类名
-   * @param url 数据库连接URL
-   * @param username 用户名
-   * @param password 密码
+   * @param driver            JDBC驱动类名
+   * @param url               数据库连接URL
+   * @param username          用户名
+   * @param password          密码
    */
   public PooledDataSource(ClassLoader driverClassLoader, String driver, String url, String username, String password) {
     dataSource = new UnpooledDataSource(driverClassLoader, driver, url, username, password);
@@ -134,10 +168,11 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 使用自定义类加载器和属性创建连接池
+   *
    * @param driverClassLoader 驱动类加载器
-   * @param driver JDBC驱动类名
-   * @param url 数据库连接URL
-   * @param driverProperties 驱动属性
+   * @param driver            JDBC驱动类名
+   * @param url               数据库连接URL
+   * @param driverProperties  驱动属性
    */
   public PooledDataSource(ClassLoader driverClassLoader, String driver, String url, Properties driverProperties) {
     dataSource = new UnpooledDataSource(driverClassLoader, driver, url, driverProperties);
@@ -146,6 +181,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 从连接池获取一个数据库连接
+   *
    * @return 包装后的数据库连接代理对象
    * @throws SQLException 获取连接失败时抛出
    */
@@ -156,6 +192,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 使用指定凭证从连接池获取一个数据库连接
+   *
    * @param username 用户名
    * @param password 密码
    * @return 包装后的数据库连接代理对象
@@ -168,6 +205,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 设置登录超时时间
+   *
    * @param loginTimeout 登录超时时间（秒）
    */
   @Override
@@ -177,6 +215,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取登录超时时间
+   *
    * @return 登录超时时间（秒）
    */
   @Override
@@ -186,6 +225,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 设置日志输出Writer
+   *
    * @param logWriter 日志输出Writer
    */
   @Override
@@ -195,6 +235,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取日志输出Writer
+   *
    * @return 日志输出Writer
    */
   @Override
@@ -204,6 +245,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 设置JDBC驱动类名
+   *
    * @param driver JDBC驱动类名
    */
   public void setDriver(String driver) {
@@ -213,6 +255,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 设置数据库连接URL
+   *
    * @param url 数据库连接URL
    */
   public void setUrl(String url) {
@@ -222,6 +265,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 设置数据库用户名
+   *
    * @param username 用户名
    */
   public void setUsername(String username) {
@@ -231,6 +275,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 设置数据库密码
+   *
    * @param password 密码
    */
   public void setPassword(String password) {
@@ -240,6 +285,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 设置默认自动提交模式
+   *
    * @param defaultAutoCommit 默认自动提交模式
    */
   public void setDefaultAutoCommit(boolean defaultAutoCommit) {
@@ -249,6 +295,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 设置默认事务隔离级别
+   *
    * @param defaultTransactionIsolationLevel 事务隔离级别
    */
   public void setDefaultTransactionIsolationLevel(Integer defaultTransactionIsolationLevel) {
@@ -258,6 +305,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 设置驱动属性
+   *
    * @param driverProps 驱动属性
    */
   public void setDriverProperties(Properties driverProps) {
@@ -268,8 +316,7 @@ public class PooledDataSource implements DataSource {
   /**
    * Sets the default network timeout value to wait for the database operation to complete. See {@link Connection#setNetworkTimeout(java.util.concurrent.Executor, int)}
    *
-   * @param milliseconds
-   *          The time in milliseconds to wait for the database operation to complete.
+   * @param milliseconds The time in milliseconds to wait for the database operation to complete.
    * @since 3.5.2
    */
   public void setDefaultNetworkTimeout(Integer milliseconds) {
@@ -280,8 +327,7 @@ public class PooledDataSource implements DataSource {
   /**
    * The maximum number of active connections.
    *
-   * @param poolMaximumActiveConnections
-   *          The maximum number of active connections
+   * @param poolMaximumActiveConnections The maximum number of active connections
    */
   public void setPoolMaximumActiveConnections(int poolMaximumActiveConnections) {
     this.poolMaximumActiveConnections = poolMaximumActiveConnections;
@@ -291,8 +337,7 @@ public class PooledDataSource implements DataSource {
   /**
    * The maximum number of idle connections.
    *
-   * @param poolMaximumIdleConnections
-   *          The maximum number of idle connections
+   * @param poolMaximumIdleConnections The maximum number of idle connections
    */
   public void setPoolMaximumIdleConnections(int poolMaximumIdleConnections) {
     this.poolMaximumIdleConnections = poolMaximumIdleConnections;
@@ -303,13 +348,11 @@ public class PooledDataSource implements DataSource {
    * The maximum number of tolerance for bad connection happens in one thread
    * which are applying for new {@link PooledConnection}.
    *
-   * @param poolMaximumLocalBadConnectionTolerance
-   *          max tolerance for bad connection happens in one thread
-   *
+   * @param poolMaximumLocalBadConnectionTolerance max tolerance for bad connection happens in one thread
    * @since 3.4.5
    */
   public void setPoolMaximumLocalBadConnectionTolerance(
-      int poolMaximumLocalBadConnectionTolerance) {
+    int poolMaximumLocalBadConnectionTolerance) {
     this.poolMaximumLocalBadConnectionTolerance = poolMaximumLocalBadConnectionTolerance;
   }
 
@@ -317,8 +360,7 @@ public class PooledDataSource implements DataSource {
    * The maximum time a connection can be used before it *may* be
    * given away again.
    *
-   * @param poolMaximumCheckoutTime
-   *          The maximum time
+   * @param poolMaximumCheckoutTime The maximum time
    */
   public void setPoolMaximumCheckoutTime(int poolMaximumCheckoutTime) {
     this.poolMaximumCheckoutTime = poolMaximumCheckoutTime;
@@ -328,8 +370,7 @@ public class PooledDataSource implements DataSource {
   /**
    * The time to wait before retrying to get a connection.
    *
-   * @param poolTimeToWait
-   *          The time to wait
+   * @param poolTimeToWait The time to wait
    */
   public void setPoolTimeToWait(int poolTimeToWait) {
     this.poolTimeToWait = poolTimeToWait;
@@ -339,8 +380,7 @@ public class PooledDataSource implements DataSource {
   /**
    * The query to be used to check a connection.
    *
-   * @param poolPingQuery
-   *          The query
+   * @param poolPingQuery The query
    */
   public void setPoolPingQuery(String poolPingQuery) {
     this.poolPingQuery = poolPingQuery;
@@ -350,8 +390,7 @@ public class PooledDataSource implements DataSource {
   /**
    * Determines if the ping query should be used.
    *
-   * @param poolPingEnabled
-   *          True if we need to check a connection before using it
+   * @param poolPingEnabled True if we need to check a connection before using it
    */
   public void setPoolPingEnabled(boolean poolPingEnabled) {
     this.poolPingEnabled = poolPingEnabled;
@@ -362,8 +401,7 @@ public class PooledDataSource implements DataSource {
    * If a connection has not been used in this many milliseconds, ping the
    * database to make sure the connection is still good.
    *
-   * @param milliseconds
-   *          the number of milliseconds of inactivity that will trigger a ping
+   * @param milliseconds the number of milliseconds of inactivity that will trigger a ping
    */
   public void setPoolPingConnectionsNotUsedFor(int milliseconds) {
     this.poolPingConnectionsNotUsedFor = milliseconds;
@@ -372,6 +410,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取JDBC驱动类名
+   *
    * @return JDBC驱动类名
    */
   public String getDriver() {
@@ -380,6 +419,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取数据库连接URL
+   *
    * @return 数据库连接URL
    */
   public String getUrl() {
@@ -388,6 +428,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取数据库用户名
+   *
    * @return 用户名
    */
   public String getUsername() {
@@ -396,6 +437,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取数据库密码
+   *
    * @return 密码
    */
   public String getPassword() {
@@ -404,6 +446,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取默认自动提交模式
+   *
    * @return 默认自动提交模式
    */
   public boolean isAutoCommit() {
@@ -412,6 +455,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取默认事务隔离级别
+   *
    * @return 事务隔离级别
    */
   public Integer getDefaultTransactionIsolationLevel() {
@@ -420,6 +464,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取驱动属性
+   *
    * @return 驱动属性
    */
   public Properties getDriverProperties() {
@@ -438,6 +483,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取池中最大活跃连接数
+   *
    * @return 最大活跃连接数
    */
   public int getPoolMaximumActiveConnections() {
@@ -446,6 +492,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取池中最大空闲连接数
+   *
    * @return 最大空闲连接数
    */
   public int getPoolMaximumIdleConnections() {
@@ -454,6 +501,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取单线程允许的最大坏连接容忍次数
+   *
    * @return 最大坏连接容忍次数
    */
   public int getPoolMaximumLocalBadConnectionTolerance() {
@@ -462,6 +510,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取连接最大检出时间
+   *
    * @return 最大检出时间（毫秒）
    */
   public int getPoolMaximumCheckoutTime() {
@@ -470,6 +519,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取获取连接等待超时时间
+   *
    * @return 等待超时时间（毫秒）
    */
   public int getPoolTimeToWait() {
@@ -478,6 +528,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取连接检测查询语句
+   *
    * @return 检测查询语句
    */
   public String getPoolPingQuery() {
@@ -486,6 +537,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取是否启用连接检测
+   *
    * @return 是否启用
    */
   public boolean isPoolPingEnabled() {
@@ -494,6 +546,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取连接未使用超时时间
+   *
    * @return 未使用超时时间（毫秒）
    */
   public int getPoolPingConnectionsNotUsedFor() {
@@ -551,6 +604,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取连接池状态对象
+   *
    * @return 连接池状态
    */
   public PoolState getPoolState() {
@@ -559,7 +613,8 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 根据URL、用户名、密码生成连接类型代码
-   * @param url 数据库连接URL
+   *
+   * @param url      数据库连接URL
    * @param username 用户名
    * @param password 密码
    * @return 连接类型代码
@@ -570,6 +625,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 将连接归还到连接池
+   *
    * @param conn 要归还的池化连接
    * @throws SQLException 处理连接时发生错误
    */
@@ -626,6 +682,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 从连接池获取一个连接
+   *
    * @param username 用户名
    * @param password 密码
    * @return 池化连接对象
@@ -755,8 +812,7 @@ public class PooledDataSource implements DataSource {
   /**
    * Method to check to see if a connection is still usable
    *
-   * @param conn
-   *          - the connection to check
+   * @param conn - the connection to check
    * @return True if the connection is still usable
    */
   protected boolean pingConnection(PooledConnection conn) {
@@ -774,7 +830,7 @@ public class PooledDataSource implements DataSource {
 
     // 如果连接有效且启用了ping检测
     if (result && poolPingEnabled && poolPingConnectionsNotUsedFor >= 0
-        && conn.getTimeElapsedSinceLastUse() > poolPingConnectionsNotUsedFor) {
+      && conn.getTimeElapsedSinceLastUse() > poolPingConnectionsNotUsedFor) {
       try {
         if (log.isDebugEnabled()) {
           log.debug("Testing connection " + conn.getRealHashCode() + " ...");
@@ -811,6 +867,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 解包池化连接，获取底层真实连接
+   *
    * @param conn 池化连接或普通连接
    * @return 底层真实数据库连接
    */
@@ -835,6 +892,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 不支持此方法
+   *
    * @param iface 接口类型
    * @return 总是抛出SQLException
    * @throws SQLException 总是抛出
@@ -846,6 +904,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 不支持此方法
+   *
    * @param iface 接口类型
    * @return 总是返回false
    */
@@ -856,6 +915,7 @@ public class PooledDataSource implements DataSource {
 
   /**
    * 获取父日志记录器
+   *
    * @return 全局日志记录器
    */
   @Override

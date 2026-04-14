@@ -1,5 +1,5 @@
 /*
- *    Copyright 2009-2022 the original author or authors.
+ *    Copyright 2009-2026 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -15,14 +15,14 @@
  */
 package org.apache.ibatis.builder.xml;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Locale;
-
 import org.apache.ibatis.io.Resources;
 import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Locale;
 
 /**
  * MyBatis DTD 的离线实体解析器。
@@ -33,18 +33,30 @@ import org.xml.sax.SAXException;
  */
 public class XMLMapperEntityResolver implements EntityResolver {
 
-  /** iBatis 配置文件 DTD 的系统标识符 */
+  /**
+   * iBatis 配置文件 DTD 的系统标识符
+   */
   private static final String IBATIS_CONFIG_SYSTEM = "ibatis-3-config.dtd";
-  /** iBatis 映射文件 DTD 的系统标识符 */
+  /**
+   * iBatis 映射文件 DTD 的系统标识符
+   */
   private static final String IBATIS_MAPPER_SYSTEM = "ibatis-3-mapper.dtd";
-  /** MyBatis 配置文件 DTD 的系统标识符 */
+  /**
+   * MyBatis 配置文件 DTD 的系统标识符
+   */
   private static final String MYBATIS_CONFIG_SYSTEM = "mybatis-3-config.dtd";
-  /** MyBatis 映射文件 DTD 的系统标识符 */
+  /**
+   * MyBatis 映射文件 DTD 的系统标识符
+   */
   private static final String MYBATIS_MAPPER_SYSTEM = "mybatis-3-mapper.dtd";
 
-  /** MyBatis 配置文件 DTD 的类路径 */
+  /**
+   * MyBatis 配置文件 DTD 的类路径
+   */
   private static final String MYBATIS_CONFIG_DTD = "org/apache/ibatis/builder/xml/mybatis-3-config.dtd";
-  /** MyBatis 映射文件 DTD 的类路径 */
+  /**
+   * MyBatis 映射文件 DTD 的类路径
+   */
   private static final String MYBATIS_MAPPER_DTD = "org/apache/ibatis/builder/xml/mybatis-3-mapper.dtd";
 
   /**
@@ -64,7 +76,7 @@ public class XMLMapperEntityResolver implements EntityResolver {
         // 匹配 MyBatis/iBatis 配置文件 DTD
         if (lowerCaseSystemId.contains(MYBATIS_CONFIG_SYSTEM) || lowerCaseSystemId.contains(IBATIS_CONFIG_SYSTEM)) {
           return getInputSource(MYBATIS_CONFIG_DTD, publicId, systemId);
-        // 匹配 MyBatis/iBatis 映射文件 DTD
+          // 匹配 MyBatis/iBatis 映射文件 DTD
         } else if (lowerCaseSystemId.contains(MYBATIS_MAPPER_SYSTEM) || lowerCaseSystemId.contains(IBATIS_MAPPER_SYSTEM)) {
           return getInputSource(MYBATIS_MAPPER_DTD, publicId, systemId);
         }
@@ -79,7 +91,7 @@ public class XMLMapperEntityResolver implements EntityResolver {
   /**
    * 根据 DTD 路径创建 InputSource。
    *
-   * @param path DTD 文件的类路径
+   * @param path     DTD 文件的类路径
    * @param publicId 公共标识符
    * @param systemId 系统标识符
    * @return InputSource 对象，若加载失败则返回 null

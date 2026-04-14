@@ -1,5 +1,5 @@
 /*
- *    Copyright 2009-2022 the original author or authors.
+ *    Copyright 2009-2026 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -16,20 +16,39 @@
 package org.apache.ibatis.parsing;
 
 /**
+ * 通用的 token 解析器，用于解析文本中以开放 token 和关闭 token 包裹的内容，
+ * 并将解析到的内容交由 handler 处理。
+ *
  * @author Clinton Begin
  */
 public class GenericTokenParser {
 
+  /** 开放 token，标记 token 内容的开始，如 "${" 或 "#{" */
   private final String openToken;
+  /** 关闭 token，标记 token 内容的结束，如 "}" */
   private final String closeToken;
+  /** token 处理器，负责实际处理解析到的 token 内容 */
   private final TokenHandler handler;
 
+  /**
+   * 构造一个 token 解析器。
+   *
+   * @param openToken  开放 token
+   * @param closeToken 关闭 token
+   * @param handler    token 处理器
+   */
   public GenericTokenParser(String openToken, String closeToken, TokenHandler handler) {
     this.openToken = openToken;
     this.closeToken = closeToken;
     this.handler = handler;
   }
 
+  /**
+   * 解析文本中的 token，将被 openToken 和 closeToken 包裹的内容交由 handler 处理。
+   *
+   * @param text 待解析的文本
+   * @return 解析后的文本
+   */
   public String parse(String text) {
     if (text == null || text.isEmpty()) {
       return "";

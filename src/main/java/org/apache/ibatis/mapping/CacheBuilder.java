@@ -1,5 +1,5 @@
 /*
- *    Copyright 2009-2022 the original author or authors.
+ *    Copyright 2009-2026 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -15,24 +15,19 @@
  */
 package org.apache.ibatis.mapping;
 
+import org.apache.ibatis.builder.InitializingObject;
+import org.apache.ibatis.cache.Cache;
+import org.apache.ibatis.cache.CacheException;
+import org.apache.ibatis.cache.decorators.*;
+import org.apache.ibatis.cache.impl.PerpetualCache;
+import org.apache.ibatis.reflection.MetaObject;
+import org.apache.ibatis.reflection.SystemMetaObject;
+
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-
-import org.apache.ibatis.builder.InitializingObject;
-import org.apache.ibatis.cache.Cache;
-import org.apache.ibatis.cache.CacheException;
-import org.apache.ibatis.cache.decorators.BlockingCache;
-import org.apache.ibatis.cache.decorators.LoggingCache;
-import org.apache.ibatis.cache.decorators.LruCache;
-import org.apache.ibatis.cache.decorators.ScheduledCache;
-import org.apache.ibatis.cache.decorators.SerializedCache;
-import org.apache.ibatis.cache.decorators.SynchronizedCache;
-import org.apache.ibatis.cache.impl.PerpetualCache;
-import org.apache.ibatis.reflection.MetaObject;
-import org.apache.ibatis.reflection.SystemMetaObject;
 
 /**
  * 缓存构建器，用于创建和配置 MyBatis 二级缓存。
@@ -40,21 +35,37 @@ import org.apache.ibatis.reflection.SystemMetaObject;
  * @author Clinton Begin
  */
 public class CacheBuilder {
-  /** 缓存的唯一标识符，对应 Mapper 命名空间 */
+  /**
+   * 缓存的唯一标识符，对应 Mapper 命名空间
+   */
   private final String id;
-  /** 缓存的具体实现类 */
+  /**
+   * 缓存的具体实现类
+   */
   private Class<? extends Cache> implementation;
-  /** 缓存装饰器列表，用于增强缓存功能 */
+  /**
+   * 缓存装饰器列表，用于增强缓存功能
+   */
   private final List<Class<? extends Cache>> decorators;
-  /** 缓存容量大小 */
+  /**
+   * 缓存容量大小
+   */
   private Integer size;
-  /** 缓存自动清除间隔（毫秒） */
+  /**
+   * 缓存自动清除间隔（毫秒）
+   */
   private Long clearInterval;
-  /** 是否支持序列化读写 */
+  /**
+   * 是否支持序列化读写
+   */
   private boolean readWrite;
-  /** 缓存自定义配置属性 */
+  /**
+   * 缓存自定义配置属性
+   */
   private Properties properties;
-  /** 是否启用阻塞缓存 */
+  /**
+   * 是否启用阻塞缓存
+   */
   private boolean blocking;
 
   /**
@@ -243,25 +254,25 @@ public class CacheBuilder {
           if (String.class == type) {
             metaCache.setValue(name, value);
           } else if (int.class == type
-              || Integer.class == type) {
+            || Integer.class == type) {
             metaCache.setValue(name, Integer.valueOf(value));
           } else if (long.class == type
-              || Long.class == type) {
+            || Long.class == type) {
             metaCache.setValue(name, Long.valueOf(value));
           } else if (short.class == type
-              || Short.class == type) {
+            || Short.class == type) {
             metaCache.setValue(name, Short.valueOf(value));
           } else if (byte.class == type
-              || Byte.class == type) {
+            || Byte.class == type) {
             metaCache.setValue(name, Byte.valueOf(value));
           } else if (float.class == type
-              || Float.class == type) {
+            || Float.class == type) {
             metaCache.setValue(name, Float.valueOf(value));
           } else if (boolean.class == type
-              || Boolean.class == type) {
+            || Boolean.class == type) {
             metaCache.setValue(name, Boolean.valueOf(value));
           } else if (double.class == type
-              || Double.class == type) {
+            || Double.class == type) {
             metaCache.setValue(name, Double.valueOf(value));
           } else {
             throw new CacheException("Unsupported property type for cache: '" + name + "' of type " + type);
@@ -284,7 +295,7 @@ public class CacheBuilder {
    * 创建缓存基础实例。
    *
    * @param cacheClass 缓存类
-   * @param id 缓存标识
+   * @param id         缓存标识
    * @return 缓存实例
    */
   private Cache newBaseCacheInstance(Class<? extends Cache> cacheClass, String id) {
@@ -315,7 +326,7 @@ public class CacheBuilder {
    * 创建缓存装饰器实例。
    *
    * @param cacheClass 装饰器类
-   * @param base 被装饰的缓存对象
+   * @param base       被装饰的缓存对象
    * @return 装饰后的缓存对象
    */
   private Cache newCacheDecoratorInstance(Class<? extends Cache> cacheClass, Cache base) {

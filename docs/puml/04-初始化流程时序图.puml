@@ -6,8 +6,11 @@ actor 开发者 as User
 participant ":SqlSessionFactoryBuilder" as Builder
 participant ":XMLConfigBuilder" as ConfigBuilder
 participant ":Configuration" as Config
+participant ":MapperRegistry" as MapperRegistry
+participant ":MapperAnnotationBuilder" as AnnotationBuilder
 participant ":XMLMapperBuilder" as MapperBuilder
 participant ":XMLStatementBuilder" as StatementBuilder
+participant ":MapperBuilderAssistant" as BuilderAssistant
 participant ":TransactionFactory" as TransFactory
 participant ":DataSourceFactory" as DSFactory
 participant ":Environment" as Environment
@@ -34,8 +37,12 @@ ConfigBuilder -> ConfigBuilder: reflectorFactoryElement(...)
 ConfigBuilder -> ConfigBuilder: settingsElement(settings)
 
 ConfigBuilder -> ConfigBuilder: environmentsElement(...)
-ConfigBuilder -> TransFactory: transactionManagerElement(...)
-ConfigBuilder -> DSFactory: dataSourceElement(...)
+ConfigBuilder -> ConfigBuilder: transactionManagerElement(...)
+ConfigBuilder -> TransFactory: new/setProperties(...)
+ConfigBuilder -> ConfigBuilder: dataSourceElement(...)
+ConfigBuilder -> DSFactory: new/setProperties(...)
+ConfigBuilder -> DSFactory: getDataSource()
+DSFactory --> ConfigBuilder: DataSource
 ConfigBuilder -> Environment: new Environment.Builder(...).build()
 ConfigBuilder -> Config: setEnvironment(environment)
 
@@ -52,26 +59,45 @@ alt mapper 使用 resource/url
   MapperBuilder -> StatementBuilder: parseStatementNode()
   StatementBuilder -> StatementBuilder: processSelectKeyNodes(...)
   StatementBuilder -> StatementBuilder: langDriver.createSqlSource(...)
-  StatementBuilder -> Config: addMappedStatement(...)
+  StatementBuilder -> BuilderAssistant: addMappedStatement(...)
+  BuilderAssistant -> Config: addMappedStatement(...)
+  MapperBuilder -> Config: addLoadedResource(resource/url)
   MapperBuilder -> MapperBuilder: bindMapperForNamespace()
+  opt namespace 对应 Mapper 接口且未注册
+    MapperBuilder -> Config: addLoadedResource("namespace:" + namespace)
+    MapperBuilder -> Config: addMapper(boundType)
+  end
+  MapperBuilder -> MapperBuilder: parsePendingResultMaps()/parsePendingCacheRefs()/parsePendingStatements()
   MapperBuilder --> ConfigBuilder: void
   deactivate MapperBuilder
 else mapper 使用 class
   ConfigBuilder -> Config: addMapper(mapperInterface)
+  Config -> MapperRegistry: addMapper(mapperInterface)
+  MapperRegistry -> AnnotationBuilder: parse()
+  AnnotationBuilder -> AnnotationBuilder: loadXmlResource()
+  opt 存在同名 XML Mapper
+    AnnotationBuilder -> MapperBuilder: parse()
+  end
+  AnnotationBuilder -> AnnotationBuilder: parseCache()/parseCacheRef()/parseStatement(...)
+else mapper 使用 package
+  ConfigBuilder -> Config: addMappers(mapperPackage)
 end
 
 ConfigBuilder --> Builder: Configuration
 deactivate ConfigBuilder
+Builder -> Builder: build(configuration)
 Builder -> SqlSessionFactory: new DefaultSqlSessionFactory(configuration)
 Builder --> User: SqlSessionFactory
 
 == 2. 打开 SqlSession ==
 
-User -> SqlSessionFactory: openSession(execType, level, autoCommit)
+User -> SqlSessionFactory: openSession(...)
 activate SqlSessionFactory
+SqlSessionFactory -> SqlSessionFactory: openSessionFromDataSource(execType, level, autoCommit)
 
 SqlSessionFactory -> Config: getEnvironment()
 Config --> SqlSessionFactory: Environment
+SqlSessionFactory -> SqlSessionFactory: getTransactionFactoryFromEnvironment(environment)
 SqlSessionFactory -> TransFactory: newTransaction(dataSource, level, autoCommit)
 SqlSessionFactory -> Config: newExecutor(tx, execType)
 
@@ -79,16 +105,17 @@ alt ExecutorType.BATCH
   Config -> Executor: new BatchExecutor(configuration, tx)
 else ExecutorType.REUSE
   Config -> Executor: new ReuseExecutor(configuration, tx)
-else ExecutorType.SIMPLE
+else ExecutorType.SIMPLE/null
   Config -> Executor: new SimpleExecutor(configuration, tx)
 end
 
-alt cacheEnabled=true
+opt cacheEnabled=true
   Config -> CachingExec: new CachingExecutor(executor)
   CachingExec --> Config: wrappedExecutor
 end
 
-Config --> SqlSessionFactory: Executor
+Config -> Config: interceptorChain.pluginAll(executor)
+Config --> SqlSessionFactory: final Executor
 SqlSessionFactory -> SqlSessionFactory: new DefaultSqlSession(configuration, executor, autoCommit)
 SqlSessionFactory --> User: SqlSession
 deactivate SqlSessionFactory
@@ -97,7 +124,8 @@ note over User
   主路径:
   build() -> XMLConfigBuilder.parse()
   -> Configuration 完成装配
-  -> DefaultSqlSessionFactory.openSession()
+  -> DefaultSqlSessionFactory.openSession(...)
+  -> openSessionFromDataSource(...)
   -> Configuration.newExecutor(...)
 end note
 

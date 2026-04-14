@@ -1,5 +1,5 @@
 /*
- *    Copyright 2009-2022 the original author or authors.
+ *    Copyright 2009-2026 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -15,23 +15,19 @@
  */
 package org.apache.ibatis.builder.xml;
 
-import java.util.List;
-import java.util.Locale;
-
 import org.apache.ibatis.builder.BaseBuilder;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.apache.ibatis.executor.keygen.Jdbc3KeyGenerator;
 import org.apache.ibatis.executor.keygen.KeyGenerator;
 import org.apache.ibatis.executor.keygen.NoKeyGenerator;
 import org.apache.ibatis.executor.keygen.SelectKeyGenerator;
-import org.apache.ibatis.mapping.MappedStatement;
-import org.apache.ibatis.mapping.ResultSetType;
-import org.apache.ibatis.mapping.SqlCommandType;
-import org.apache.ibatis.mapping.SqlSource;
-import org.apache.ibatis.mapping.StatementType;
+import org.apache.ibatis.mapping.*;
 import org.apache.ibatis.parsing.XNode;
 import org.apache.ibatis.scripting.LanguageDriver;
 import org.apache.ibatis.session.Configuration;
+
+import java.util.List;
+import java.util.Locale;
 
 /**
  * XML 语句构建器，负责解析 MyBatis mapper XML 中的 SQL 语句节点（如 select、insert、update、delete）
@@ -41,11 +37,17 @@ import org.apache.ibatis.session.Configuration;
  */
 public class XMLStatementBuilder extends BaseBuilder {
 
-  /** 用于辅助构建 MappedStatement 的助手类 */
+  /**
+   * 用于辅助构建 MappedStatement 的助手类
+   */
   private final MapperBuilderAssistant builderAssistant;
-  /** 当前解析的 XML 节点 */
+  /**
+   * 当前解析的 XML 节点
+   */
   private final XNode context;
-  /** 必需的数据库标识，用于多数据库支持 */
+  /**
+   * 必需的数据库标识，用于多数据库支持
+   */
   private final String requiredDatabaseId;
 
   public XMLStatementBuilder(Configuration configuration, MapperBuilderAssistant builderAssistant, XNode context) {
@@ -106,8 +108,8 @@ public class XMLStatementBuilder extends BaseBuilder {
     } else {
       // INSERT 语句默认使用自增主键生成器
       keyGenerator = context.getBooleanAttribute("useGeneratedKeys",
-          configuration.isUseGeneratedKeys() && SqlCommandType.INSERT.equals(sqlCommandType))
-          ? Jdbc3KeyGenerator.INSTANCE : NoKeyGenerator.INSTANCE;
+        configuration.isUseGeneratedKeys() && SqlCommandType.INSERT.equals(sqlCommandType))
+        ? Jdbc3KeyGenerator.INSTANCE : NoKeyGenerator.INSTANCE;
     }
 
     // 创建 SQL 源对象
@@ -131,18 +133,18 @@ public class XMLStatementBuilder extends BaseBuilder {
 
     // 构建并注册 MappedStatement
     builderAssistant.addMappedStatement(id, sqlSource, statementType, sqlCommandType,
-        fetchSize, timeout, parameterMap, parameterTypeClass, resultMap, resultTypeClass,
-        resultSetTypeEnum, flushCache, useCache, resultOrdered,
-        keyGenerator, keyProperty, keyColumn, databaseId, langDriver, resultSets);
+      fetchSize, timeout, parameterMap, parameterTypeClass, resultMap, resultTypeClass,
+      resultSetTypeEnum, flushCache, useCache, resultOrdered,
+      keyGenerator, keyProperty, keyColumn, databaseId, langDriver, resultSets);
   }
 
   /**
    * 处理 selectKey 节点，分别针对特定数据库标识和无数据库标识的情况进行解析，
    * 解析完成后从上下文中移除这些节点。
    *
-   * @param id 语句 ID
-   * @parameterTypeClass 参数类型
+   * @param id         语句 ID
    * @param langDriver 语言驱动
+   * @parameterTypeClass 参数类型
    */
   private void processSelectKeyNodes(String id, Class<?> parameterTypeClass, LanguageDriver langDriver) {
     // 查找所有 selectKey 节点
@@ -160,10 +162,10 @@ public class XMLStatementBuilder extends BaseBuilder {
   /**
    * 遍历 selectKey 节点列表，筛选匹配的数据库标识并解析。
    *
-   * @param parentId 父语句 ID
-   * @param list selectKey 节点列表
-   * @param parameterTypeClass 参数类型
-   * @param langDriver 语言驱动
+   * @param parentId             父语句 ID
+   * @param list                 selectKey 节点列表
+   * @param parameterTypeClass   参数类型
+   * @param langDriver           语言驱动
    * @param skRequiredDatabaseId 必需的数据库标识
    */
   private void parseSelectKeyNodes(String parentId, List<XNode> list, Class<?> parameterTypeClass, LanguageDriver langDriver, String skRequiredDatabaseId) {
@@ -180,11 +182,11 @@ public class XMLStatementBuilder extends BaseBuilder {
   /**
    * 解析单个 selectKey 节点，创建对应的 MappedStatement 并注册主键生成器。
    *
-   * @param id 语句 ID
-   * @param nodeToHandle selectKey 节点
+   * @param id                 语句 ID
+   * @param nodeToHandle       selectKey 节点
    * @param parameterTypeClass 参数类型
-   * @param langDriver 语言驱动
-   * @param databaseId 数据库标识
+   * @param langDriver         语言驱动
+   * @param databaseId         数据库标识
    */
   private void parseSelectKeyNode(String id, XNode nodeToHandle, Class<?> parameterTypeClass, LanguageDriver langDriver, String databaseId) {
     String resultType = nodeToHandle.getStringAttribute("resultType");
@@ -212,9 +214,9 @@ public class XMLStatementBuilder extends BaseBuilder {
 
     // 注册 selectKey 语句
     builderAssistant.addMappedStatement(id, sqlSource, statementType, sqlCommandType,
-        fetchSize, timeout, parameterMap, parameterTypeClass, resultMap, resultTypeClass,
-        resultSetTypeEnum, flushCache, useCache, resultOrdered,
-        keyGenerator, keyProperty, keyColumn, databaseId, langDriver, null);
+      fetchSize, timeout, parameterMap, parameterTypeClass, resultMap, resultTypeClass,
+      resultSetTypeEnum, flushCache, useCache, resultOrdered,
+      keyGenerator, keyProperty, keyColumn, databaseId, langDriver, null);
 
     id = builderAssistant.applyCurrentNamespace(id, false);
 
@@ -238,8 +240,8 @@ public class XMLStatementBuilder extends BaseBuilder {
    * 检查语句的数据库标识是否与当前配置匹配。
    * 用于多数据库环境下根据数据库类型选择对应的 SQL 语句。
    *
-   * @param id 语句 ID
-   * @param databaseId 语句声明的数据库标识
+   * @param id                 语句 ID
+   * @param databaseId         语句声明的数据库标识
    * @param requiredDatabaseId 必需的数据库标识
    * @return 是否匹配
    */

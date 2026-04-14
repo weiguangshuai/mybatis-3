@@ -1,5 +1,5 @@
 /*
- *    Copyright 2009-2022 the original author or authors.
+ *    Copyright 2009-2026 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -15,39 +15,21 @@
  */
 package org.apache.ibatis.builder.xml;
 
-import java.io.InputStream;
-import java.io.Reader;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-
-import org.apache.ibatis.builder.BaseBuilder;
-import org.apache.ibatis.builder.BuilderException;
-import org.apache.ibatis.builder.CacheRefResolver;
-import org.apache.ibatis.builder.IncompleteElementException;
-import org.apache.ibatis.builder.MapperBuilderAssistant;
-import org.apache.ibatis.builder.ResultMapResolver;
+import org.apache.ibatis.builder.*;
 import org.apache.ibatis.cache.Cache;
 import org.apache.ibatis.executor.ErrorContext;
 import org.apache.ibatis.io.Resources;
-import org.apache.ibatis.mapping.Discriminator;
-import org.apache.ibatis.mapping.ParameterMapping;
-import org.apache.ibatis.mapping.ParameterMode;
-import org.apache.ibatis.mapping.ResultFlag;
-import org.apache.ibatis.mapping.ResultMap;
-import org.apache.ibatis.mapping.ResultMapping;
+import org.apache.ibatis.mapping.*;
 import org.apache.ibatis.parsing.XNode;
 import org.apache.ibatis.parsing.XPathParser;
 import org.apache.ibatis.reflection.MetaClass;
 import org.apache.ibatis.session.Configuration;
 import org.apache.ibatis.type.JdbcType;
 import org.apache.ibatis.type.TypeHandler;
+
+import java.io.InputStream;
+import java.io.Reader;
+import java.util.*;
 
 /**
  * MyBatis Mapper XML 配置构建器，负责解析 Mapper XML 文件并构建对应的映射配置。
@@ -57,13 +39,21 @@ import org.apache.ibatis.type.TypeHandler;
  */
 public class XMLMapperBuilder extends BaseBuilder {
 
-  /** XPath 解析器，用于解析 XML 文件 */
+  /**
+   * XPath 解析器，用于解析 XML 文件
+   */
   private final XPathParser parser;
-  /** Mapper 构建辅助器，负责构建映射语句和结果映射 */
+  /**
+   * Mapper 构建辅助器，负责构建映射语句和结果映射
+   */
   private final MapperBuilderAssistant builderAssistant;
-  /** SQL 片段映射，存储 <sql> 标签定义的可复用 SQL 片段 */
+  /**
+   * SQL 片段映射，存储 <sql> 标签定义的可复用 SQL 片段
+   */
   private final Map<String, XNode> sqlFragments;
-  /** 当前 Mapper XML 文件的资源路径 */
+  /**
+   * 当前 Mapper XML 文件的资源路径
+   */
   private final String resource;
 
   @Deprecated
@@ -75,17 +65,17 @@ public class XMLMapperBuilder extends BaseBuilder {
   @Deprecated
   public XMLMapperBuilder(Reader reader, Configuration configuration, String resource, Map<String, XNode> sqlFragments) {
     this(new XPathParser(reader, true, configuration.getVariables(), new XMLMapperEntityResolver()),
-        configuration, resource, sqlFragments);
+      configuration, resource, sqlFragments);
   }
 
   /**
    * 使用 InputStream 构造 XMLMapperBuilder。
    *
-   * @param inputStream Mapper XML 文件输入流
+   * @param inputStream   Mapper XML 文件输入流
    * @param configuration MyBatis 配置对象
-   * @param resource 资源路径
-   * @param sqlFragments SQL 片段映射
-   * @param namespace 命名空间
+   * @param resource      资源路径
+   * @param sqlFragments  SQL 片段映射
+   * @param namespace     命名空间
    */
   public XMLMapperBuilder(InputStream inputStream, Configuration configuration, String resource, Map<String, XNode> sqlFragments, String namespace) {
     this(inputStream, configuration, resource, sqlFragments);
@@ -95,14 +85,14 @@ public class XMLMapperBuilder extends BaseBuilder {
   /**
    * 使用 InputStream 构造 XMLMapperBuilder（无命名空间）。
    *
-   * @param inputStream Mapper XML 文件输入流
+   * @param inputStream   Mapper XML 文件输入流
    * @param configuration MyBatis 配置对象
-   * @param resource 资源路径
-   * @param sqlFragments SQL 片段映射
+   * @param resource      资源路径
+   * @param sqlFragments  SQL 片段映射
    */
   public XMLMapperBuilder(InputStream inputStream, Configuration configuration, String resource, Map<String, XNode> sqlFragments) {
     this(new XPathParser(inputStream, true, configuration.getVariables(), new XMLMapperEntityResolver()),
-        configuration, resource, sqlFragments);
+      configuration, resource, sqlFragments);
   }
 
   /**
@@ -190,7 +180,7 @@ public class XMLMapperBuilder extends BaseBuilder {
   /**
    * 遍历节点列表构建 SQL 语句。
    *
-   * @param list SQL 语句节点列表
+   * @param list               SQL 语句节点列表
    * @param requiredDatabaseId 所需的数据库标识
    */
   private void buildStatementFromContext(List<XNode> list, String requiredDatabaseId) {
@@ -366,9 +356,9 @@ public class XMLMapperBuilder extends BaseBuilder {
   /**
    * 解析 resultMap 节点，支持继承和额外映射。
    *
-   * @param resultMapNode resultMap 节点
+   * @param resultMapNode            resultMap 节点
    * @param additionalResultMappings 额外的结果映射
-   * @param enclosingType 闭包类型（用于嵌套映射）
+   * @param enclosingType            闭包类型（用于嵌套映射）
    * @return 解析后的 ResultMap 对象
    */
   private ResultMap resultMapElement(XNode resultMapNode, List<ResultMapping> additionalResultMappings, Class<?> enclosingType) {
@@ -376,9 +366,9 @@ public class XMLMapperBuilder extends BaseBuilder {
 
     // 解析 resultMap 的类型属性，支持多种别名
     String type = resultMapNode.getStringAttribute("type",
-        resultMapNode.getStringAttribute("ofType",
-            resultMapNode.getStringAttribute("resultType",
-                resultMapNode.getStringAttribute("javaType"))));
+      resultMapNode.getStringAttribute("ofType",
+        resultMapNode.getStringAttribute("resultType",
+          resultMapNode.getStringAttribute("javaType"))));
     Class<?> typeClass = resolveClass(type);
     // 如果未指定类型，尝试从闭包类型继承
     if (typeClass == null) {
@@ -408,7 +398,7 @@ public class XMLMapperBuilder extends BaseBuilder {
 
     // 解析 resultMap 的 id、extends 和 autoMapping 属性
     String id = resultMapNode.getStringAttribute("id",
-            resultMapNode.getValueBasedIdentifier());
+      resultMapNode.getValueBasedIdentifier());
     String extend = resultMapNode.getStringAttribute("extends");
     Boolean autoMapping = resultMapNode.getBooleanAttribute("autoMapping");
 
@@ -448,8 +438,8 @@ public class XMLMapperBuilder extends BaseBuilder {
   /**
    * 解析 <constructor> 元素，构建构造函数参数映射。
    *
-   * @param resultChild constructor 节点
-   * @param resultType 结果类型
+   * @param resultChild    constructor 节点
+   * @param resultType     结果类型
    * @param resultMappings 结果映射列表
    */
   private void processConstructorElement(XNode resultChild, Class<?> resultType, List<ResultMapping> resultMappings) {
@@ -468,8 +458,8 @@ public class XMLMapperBuilder extends BaseBuilder {
   /**
    * 解析 <discriminator> 元素，构建鉴别器映射。
    *
-   * @param context discriminator 节点
-   * @param resultType 结果类型
+   * @param context        discriminator 节点
+   * @param resultType     结果类型
    * @param resultMappings 结果映射列表
    * @return 解析后的 Discriminator 对象
    */
@@ -510,7 +500,7 @@ public class XMLMapperBuilder extends BaseBuilder {
   /**
    * 遍历 SQL 节点列表，筛选匹配的片段并存储。
    *
-   * @param list sql 节点列表
+   * @param list               sql 节点列表
    * @param requiredDatabaseId 所需的数据库标识
    */
   private void sqlElement(List<XNode> list, String requiredDatabaseId) {
@@ -529,8 +519,8 @@ public class XMLMapperBuilder extends BaseBuilder {
   /**
    * 判断 SQL 片段的 databaseId 是否匹配当前所需。
    *
-   * @param id SQL 片段 ID
-   * @param databaseId 片段的 databaseId 属性
+   * @param id                 SQL 片段 ID
+   * @param databaseId         片段的 databaseId 属性
    * @param requiredDatabaseId 所需的 databaseId
    * @return 是否匹配
    */
@@ -555,9 +545,9 @@ public class XMLMapperBuilder extends BaseBuilder {
   /**
    * 从节点上下文构建 ResultMapping。
    *
-   * @param context result/id/association/collection 等节点
+   * @param context    result/id/association/collection 等节点
    * @param resultType 结果类型
-   * @param flags 结果映射标志
+   * @param flags      结果映射标志
    * @return 解析后的 ResultMapping 对象
    */
   private ResultMapping buildResultMappingFromContext(XNode context, Class<?> resultType, List<ResultFlag> flags) {
@@ -574,7 +564,7 @@ public class XMLMapperBuilder extends BaseBuilder {
     String jdbcType = context.getStringAttribute("jdbcType");
     String nestedSelect = context.getStringAttribute("select");
     String nestedResultMap = context.getStringAttribute("resultMap", () ->
-        processNestedResultMappings(context, Collections.emptyList(), resultType));
+      processNestedResultMappings(context, Collections.emptyList(), resultType));
     String notNullColumn = context.getStringAttribute("notNullColumn");
     String columnPrefix = context.getStringAttribute("columnPrefix");
     String typeHandler = context.getStringAttribute("typeHandler");
@@ -594,15 +584,15 @@ public class XMLMapperBuilder extends BaseBuilder {
   /**
    * 处理嵌套的结果映射（association/collection/case）。
    *
-   * @param context 当前节点
+   * @param context        当前节点
    * @param resultMappings 结果映射列表
-   * @param enclosingType 闭包类型
+   * @param enclosingType  闭包类型
    * @return 嵌套 resultMap 的 ID，不存在则返回 null
    */
   private String processNestedResultMappings(XNode context, List<ResultMapping> resultMappings, Class<?> enclosingType) {
     // 仅处理使用嵌套 resultMap 的 association/collection/case
     if (Arrays.asList("association", "collection", "case").contains(context.getName())
-        && context.getStringAttribute("select") == null) {
+      && context.getStringAttribute("select") == null) {
       // 验证集合类型是否明确
       validateCollection(context, enclosingType);
       ResultMap resultMap = resultMapElement(context, resultMappings, enclosingType);
@@ -614,18 +604,18 @@ public class XMLMapperBuilder extends BaseBuilder {
   /**
    * 验证 collection 元素的类型是否明确，避免歧义。
    *
-   * @param context collection 节点
+   * @param context       collection 节点
    * @param enclosingType 闭包类型
    */
   protected void validateCollection(XNode context, Class<?> enclosingType) {
     // 未指定 javaType 和 resultMap 时，需要能从闭包类型推断出集合元素类型
     if ("collection".equals(context.getName()) && context.getStringAttribute("resultMap") == null
-        && context.getStringAttribute("javaType") == null) {
+      && context.getStringAttribute("javaType") == null) {
       MetaClass metaResultType = MetaClass.forClass(enclosingType, configuration.getReflectorFactory());
       String property = context.getStringAttribute("property");
       if (!metaResultType.hasSetter(property)) {
         throw new BuilderException(
-            "Ambiguous collection type for property '" + property + "'. You must specify 'javaType' or 'resultMap'.");
+          "Ambiguous collection type for property '" + property + "'. You must specify 'javaType' or 'resultMap'.");
       }
     }
   }

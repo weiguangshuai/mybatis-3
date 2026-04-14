@@ -1,5 +1,5 @@
 /*
- *    Copyright 2009-2022 the original author or authors.
+ *    Copyright 2009-2026 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -14,12 +14,6 @@
  *    limitations under the License.
  */
 package org.apache.ibatis.builder.xml;
-
-import java.io.InputStream;
-import java.io.Reader;
-import java.util.Properties;
-
-import javax.sql.DataSource;
 
 import org.apache.ibatis.builder.BaseBuilder;
 import org.apache.ibatis.builder.BuilderException;
@@ -39,13 +33,14 @@ import org.apache.ibatis.reflection.MetaClass;
 import org.apache.ibatis.reflection.ReflectorFactory;
 import org.apache.ibatis.reflection.factory.ObjectFactory;
 import org.apache.ibatis.reflection.wrapper.ObjectWrapperFactory;
-import org.apache.ibatis.session.AutoMappingBehavior;
-import org.apache.ibatis.session.AutoMappingUnknownColumnBehavior;
-import org.apache.ibatis.session.Configuration;
-import org.apache.ibatis.session.ExecutorType;
-import org.apache.ibatis.session.LocalCacheScope;
+import org.apache.ibatis.session.*;
 import org.apache.ibatis.transaction.TransactionFactory;
 import org.apache.ibatis.type.JdbcType;
+
+import javax.sql.DataSource;
+import java.io.InputStream;
+import java.io.Reader;
+import java.util.Properties;
 
 /**
  * MyBatis 配置文件的解析器，负责将 XML 配置文件转换为 Configuration 对象。
@@ -55,13 +50,21 @@ import org.apache.ibatis.type.JdbcType;
  */
 public class XMLConfigBuilder extends BaseBuilder {
 
-  /** 标记配置文件是否已被解析，防止重复解析 */
+  /**
+   * 标记配置文件是否已被解析，防止重复解析
+   */
   private boolean parsed;
-  /** XML 解析器，用于解析 MyBatis 配置文件 */
+  /**
+   * XML 解析器，用于解析 MyBatis 配置文件
+   */
   private final XPathParser parser;
-  /** 当前使用的环境标识，与配置文件中 environments 的 default 属性对应 */
+  /**
+   * 当前使用的环境标识，与配置文件中 environments 的 default 属性对应
+   */
   private String environment;
-  /** 本地反射工厂，用于验证 settings 中的属性是否存在 */
+  /**
+   * 本地反射工厂，用于验证 settings 中的属性是否存在
+   */
   private final ReflectorFactory localReflectorFactory = new DefaultReflectorFactory();
 
   /**
@@ -76,7 +79,7 @@ public class XMLConfigBuilder extends BaseBuilder {
   /**
    * 使用 Reader 和环境名称构造配置构建器。
    *
-   * @param reader 配置文件的 Reader
+   * @param reader      配置文件的 Reader
    * @param environment 环境名称
    */
   public XMLConfigBuilder(Reader reader, String environment) {
@@ -86,9 +89,9 @@ public class XMLConfigBuilder extends BaseBuilder {
   /**
    * 使用 Reader、环境名称和属性构造配置构建器。
    *
-   * @param reader 配置文件的 Reader
+   * @param reader      配置文件的 Reader
    * @param environment 环境名称
-   * @param props 初始属性
+   * @param props       初始属性
    */
   public XMLConfigBuilder(Reader reader, String environment, Properties props) {
     this(Configuration.class, reader, environment, props);
@@ -98,9 +101,9 @@ public class XMLConfigBuilder extends BaseBuilder {
    * 使用自定义配置类、Reader、环境名称和属性构造配置构建器。
    *
    * @param configClass 自定义配置类
-   * @param reader 配置文件的 Reader
+   * @param reader      配置文件的 Reader
    * @param environment 环境名称
-   * @param props 初始属性
+   * @param props       初始属性
    */
   public XMLConfigBuilder(Class<? extends Configuration> configClass, Reader reader, String environment, Properties props) {
     this(configClass, new XPathParser(reader, true, props, new XMLMapperEntityResolver()), environment, props);
@@ -130,7 +133,7 @@ public class XMLConfigBuilder extends BaseBuilder {
    *
    * @param inputStream 配置文件的 InputStream
    * @param environment 环境名称
-   * @param props 初始属性
+   * @param props       初始属性
    */
   public XMLConfigBuilder(InputStream inputStream, String environment, Properties props) {
     this(Configuration.class, inputStream, environment, props);
@@ -142,7 +145,7 @@ public class XMLConfigBuilder extends BaseBuilder {
    * @param configClass 自定义配置类
    * @param inputStream 配置文件的 InputStream
    * @param environment 环境名称
-   * @param props 初始属性
+   * @param props       初始属性
    */
   public XMLConfigBuilder(Class<? extends Configuration> configClass, InputStream inputStream, String environment, Properties props) {
     this(configClass, new XPathParser(inputStream, true, props, new XMLMapperEntityResolver()), environment, props);
@@ -238,7 +241,7 @@ public class XMLConfigBuilder extends BaseBuilder {
       for (String clazz : clazzes) {
         if (!clazz.isEmpty()) {
           @SuppressWarnings("unchecked")
-          Class<? extends VFS> vfsImpl = (Class<? extends VFS>)Resources.classForName(clazz);
+          Class<? extends VFS> vfsImpl = (Class<? extends VFS>) Resources.classForName(clazz);
           configuration.setVfsImpl(vfsImpl);
         }
       }
@@ -432,8 +435,8 @@ public class XMLConfigBuilder extends BaseBuilder {
           DataSourceFactory dsFactory = dataSourceElement(child.evalNode("dataSource"));
           DataSource dataSource = dsFactory.getDataSource();
           Environment.Builder environmentBuilder = new Environment.Builder(id)
-              .transactionFactory(txFactory)
-              .dataSource(dataSource);
+            .transactionFactory(txFactory)
+            .dataSource(dataSource);
           configuration.setEnvironment(environmentBuilder.build());
           break;
         }
@@ -554,14 +557,14 @@ public class XMLConfigBuilder extends BaseBuilder {
           if (resource != null && url == null && mapperClass == null) {
             // 从类路径加载 XML 文件
             ErrorContext.instance().resource(resource);
-            try(InputStream inputStream = Resources.getResourceAsStream(resource)) {
+            try (InputStream inputStream = Resources.getResourceAsStream(resource)) {
               XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, resource, configuration.getSqlFragments());
               mapperParser.parse();
             }
           } else if (resource == null && url != null && mapperClass == null) {
             // 从 URL 加载 XML 文件
             ErrorContext.instance().resource(url);
-            try(InputStream inputStream = Resources.getUrlAsStream(url)){
+            try (InputStream inputStream = Resources.getUrlAsStream(url)) {
               XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, url, configuration.getSqlFragments());
               mapperParser.parse();
             }

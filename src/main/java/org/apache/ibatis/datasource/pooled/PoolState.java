@@ -1,5 +1,5 @@
 /*
- *    Copyright 2009-2022 the original author or authors.
+ *    Copyright 2009-2026 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -25,28 +25,50 @@ import java.util.List;
  */
 public class PoolState {
 
-  /** 关联的数据源 */
+  /**
+   * 关联的数据源
+   */
   protected PooledDataSource dataSource;
 
-  /** 空闲连接列表 */
+  /**
+   * 空闲连接列表
+   */
   protected final List<PooledConnection> idleConnections = new ArrayList<>();
-  /** 活跃连接列表 */
+  /**
+   * 活跃连接列表
+   */
   protected final List<PooledConnection> activeConnections = new ArrayList<>();
-  /** 获取连接的请求总数 */
+  /**
+   * 获取连接的请求总数
+   */
   protected long requestCount = 0;
-  /** 累计请求处理时间（毫秒） */
+  /**
+   * 累计请求处理时间（毫秒）
+   */
   protected long accumulatedRequestTime = 0;
-  /** 累计连接检出时间（毫秒） */
+  /**
+   * 累计连接检出时间（毫秒）
+   */
   protected long accumulatedCheckoutTime = 0;
-  /** 被强制关闭的超时连接数量 */
+  /**
+   * 被强制关闭的超时连接数量
+   */
   protected long claimedOverdueConnectionCount = 0;
-  /** 超时连接的累计检出时间（毫秒） */
+  /**
+   * 超时连接的累计检出时间（毫秒）
+   */
   protected long accumulatedCheckoutTimeOfOverdueConnections = 0;
-  /** 线程等待连接的总时间（毫秒） */
+  /**
+   * 线程等待连接的总时间（毫秒）
+   */
   protected long accumulatedWaitTime = 0;
-  /** 线程因无可用连接而等待的次数 */
+  /**
+   * 线程因无可用连接而等待的次数
+   */
   protected long hadToWaitCount = 0;
-  /** 无效连接（已损坏）数量 */
+  /**
+   * 无效连接（已损坏）数量
+   */
   protected long badConnectionCount = 0;
 
   /**

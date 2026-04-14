@@ -1,5 +1,5 @@
 /*
- *    Copyright 2009-2022 the original author or authors.
+ *    Copyright 2009-2026 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -15,11 +15,6 @@
  */
 package org.apache.ibatis.builder.xml;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Properties;
-
 import org.apache.ibatis.builder.BuilderException;
 import org.apache.ibatis.builder.IncompleteElementException;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -30,6 +25,11 @@ import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Properties;
+
 /**
  * 处理 XML mapper 中的 include 节点，将引用替换为实际的 SQL 片段。
  *
@@ -37,15 +37,19 @@ import org.w3c.dom.NodeList;
  */
 public class XMLIncludeTransformer {
 
-  /** MyBatis 全局配置对象 */
+  /**
+   * MyBatis 全局配置对象
+   */
   private final Configuration configuration;
-  /** Mapper 构建助手，用于解析和构建映射器 */
+  /**
+   * Mapper 构建助手，用于解析和构建映射器
+   */
   private final MapperBuilderAssistant builderAssistant;
 
   /**
    * 构造 Include 转换器。
    *
-   * @param configuration MyBatis 配置对象
+   * @param configuration    MyBatis 配置对象
    * @param builderAssistant Mapper 构建助手
    */
   public XMLIncludeTransformer(Configuration configuration, MapperBuilderAssistant builderAssistant) {
@@ -69,9 +73,9 @@ public class XMLIncludeTransformer {
   /**
    * Recursively apply includes through all SQL fragments.
    *
-   * @param source Include node in DOM tree
+   * @param source           Include node in DOM tree
    * @param variablesContext Current context for static variables with values
-   * @param included 标记当前节点是否在 include 链中
+   * @param included         标记当前节点是否在 include 链中
    */
   private void applyIncludes(Node source, final Properties variablesContext, boolean included) {
     // 处理 include 节点：替换为 SQL 片段
@@ -110,7 +114,7 @@ public class XMLIncludeTransformer {
         applyIncludes(children.item(i), variablesContext, included);
       }
     } else if (included && (source.getNodeType() == Node.TEXT_NODE || source.getNodeType() == Node.CDATA_SECTION_NODE)
-        && !variablesContext.isEmpty()) {
+      && !variablesContext.isEmpty()) {
       // 替换文本节点中的变量占位符
       source.setNodeValue(PropertyParser.parse(source.getNodeValue(), variablesContext));
     }
@@ -119,7 +123,7 @@ public class XMLIncludeTransformer {
   /**
    * 根据 refid 查找对应的 SQL 片段节点。
    *
-   * @param refid SQL 片段的引用 ID
+   * @param refid     SQL 片段的引用 ID
    * @param variables 变量上下文
    * @return 找到的 SQL 片段节点副本
    */
@@ -151,7 +155,7 @@ public class XMLIncludeTransformer {
   /**
    * Read placeholders and their values from include node definition.
    *
-   * @param node Include node instance
+   * @param node                      Include node instance
    * @param inheritedVariablesContext Current context used for replace variables in new variables values
    * @return variables context from include instance (no inherited values)
    */
