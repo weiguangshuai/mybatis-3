@@ -14,6 +14,6 @@
  *    limitations under the License.
  */
 /**
- * Base package for languages.
+ * 脚本语言支持的基础包，提供动态 SQL 解析与执行的相关能力。
  */
 package org.apache.ibatis.scripting;

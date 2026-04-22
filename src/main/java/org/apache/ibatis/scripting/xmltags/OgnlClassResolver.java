@@ -20,9 +20,7 @@ import ognl.DefaultClassResolver;
 import org.apache.ibatis.io.Resources;
 
 /**
- * Custom ognl {@code ClassResolver} which behaves same like ognl's
- * {@code DefaultClassResolver}. But uses the {@code Resources}
- * utility class to find the target class instead of {@code Class#forName(String)}.
+ * OgnlClassResolver，使用 MyBatis 的 Resources 工具加载类，以支持更灵活的类查找机制。
  *
  * @author Daniel Guggi
  *
@@ -30,8 +28,16 @@ import org.apache.ibatis.io.Resources;
  */
 public class OgnlClassResolver extends DefaultClassResolver {
 
+  /**
+   * 通过 Resources 工具将类名解析为 Class 对象。
+   *
+   * @param className 完整类名
+   * @return 对应的 Class 对象
+   * @throws ClassNotFoundException 当类无法找到时抛出
+   */
   @Override
   protected Class toClassForName(String className) throws ClassNotFoundException {
+    // 使用 MyBatis Resources 加载类，兼容多种类加载器场景
     return Resources.classForName(className);
   }
 

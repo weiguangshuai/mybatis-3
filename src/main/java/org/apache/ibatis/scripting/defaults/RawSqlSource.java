@@ -26,32 +26,60 @@ import org.apache.ibatis.scripting.xmltags.SqlNode;
 import org.apache.ibatis.session.Configuration;
 
 /**
- * Static SqlSource. It is faster than {@link DynamicSqlSource} because mappings are
- * calculated during startup.
+ * RawSqlSource，在启动时即完成映射计算，因此比 {@link DynamicSqlSource} 更快。
  *
  * @since 3.2.0
  * @author Eduardo Macarron
  */
 public class RawSqlSource implements SqlSource {
 
+  /** 解析后得到的静态 SqlSource，用于实际生成 BoundSql。 */
   private final SqlSource sqlSource;
 
+  /**
+   * 通过 SqlNode 构造 RawSqlSource。
+   *
+   * @param configuration Configuration
+   * @param rootSqlNode   根 SqlNode
+   * @param parameterType 参数类型
+   */
   public RawSqlSource(Configuration configuration, SqlNode rootSqlNode, Class<?> parameterType) {
     this(configuration, getSql(configuration, rootSqlNode), parameterType);
   }
 
+  /**
+   * 通过原始 SQL 字符串构造 RawSqlSource，并在构造时完成 SQL 解析。
+   *
+   * @param configuration Configuration
+   * @param sql           原始 SQL 字符串
+   * @param parameterType 参数类型
+   */
   public RawSqlSource(Configuration configuration, String sql, Class<?> parameterType) {
     SqlSourceBuilder sqlSourceParser = new SqlSourceBuilder(configuration);
+    // 参数类型为空时，默认使用 Object.class
     Class<?> clazz = parameterType == null ? Object.class : parameterType;
     sqlSource = sqlSourceParser.parse(sql, clazz, new HashMap<>());
   }
 
+  /**
+   * 从 SqlNode 中提取最终 SQL 字符串。
+   *
+   * @param configuration Configuration
+   * @param rootSqlNode   根 SqlNode
+   * @return 解析后的 SQL 字符串
+   */
   private static String getSql(Configuration configuration, SqlNode rootSqlNode) {
     DynamicContext context = new DynamicContext(configuration, null);
     rootSqlNode.apply(context);
     return context.getSql();
   }
 
+  /**
+   * 获取 BoundSql 对象。
+   *
+   * @param parameterObject 实际参数对象
+   * @return 包含最终 SQL 与参数的 BoundSql
+   */
   @Override
   public BoundSql getBoundSql(Object parameterObject) {
     return sqlSource.getBoundSql(parameterObject);

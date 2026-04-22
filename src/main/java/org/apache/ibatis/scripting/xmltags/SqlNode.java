@@ -18,6 +18,17 @@ package org.apache.ibatis.scripting.xmltags;
 /**
  * @author Clinton Begin
  */
+
+/**
+ * SqlNode - 负责将自身内容解析并追加到 DynamicContext 中
+ */
 public interface SqlNode {
+
+  /**
+   * 将当前 SqlNode 的 SQL 内容应用到 DynamicContext 中
+   *
+   * @param context DynamicContext，用于收集解析后的 SQL 片段和参数
+   * @return 是否成功应用了该 SqlNode（部分 SqlNode 可能因条件不满足而返回 false）
+   */
   boolean apply(DynamicContext context);
 }

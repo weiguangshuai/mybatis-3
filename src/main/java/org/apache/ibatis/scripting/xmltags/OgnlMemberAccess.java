@@ -24,8 +24,10 @@ import ognl.MemberAccess;
 import org.apache.ibatis.reflection.Reflector;
 
 /**
- * The {@link MemberAccess} class that based on <a href=
- * 'https://github.com/jkuhnert/ognl/blob/OGNL_3_2_1/src/java/ognl/DefaultMemberAccess.java'>DefaultMemberAccess</a>.
+ * OGNL 表达式访问成员时的权限控制类，用于在运行时设置成员的可访问性。
+ *
+ * <p>基于 <a href=
+ * 'https://github.com/jkuhnert/ognl/blob/OGNL_3_2_1/src/java/ognl/DefaultMemberAccess.java'>DefaultMemberAccess</a> 实现。
  *
  * @author Kazuki Shimizu
  * @since 3.5.0
@@ -36,12 +38,24 @@ import org.apache.ibatis.reflection.Reflector;
  */
 class OgnlMemberAccess implements MemberAccess {
 
+  /**
+   * 当前环境是否允许控制成员的可访问性
+   */
   private final boolean canControlMemberAccessible;
 
   OgnlMemberAccess() {
     this.canControlMemberAccessible = Reflector.canControlMemberAccessible();
   }
 
+  /**
+   * 设置目标成员的可访问性，以便 OGNL 能够访问私有或受保护的成员。
+   *
+   * @param context OgnlContext
+   * @param target 目标对象
+   * @param member 要访问的成员
+   * @param propertyName 属性名称
+   * @return 若修改了可访问性则返回之前的可访问状态，否则返回 null
+   */
   @Override
   public Object setup(Map context, Object target, Member member, String propertyName) {
     Object result = null;
@@ -55,12 +69,30 @@ class OgnlMemberAccess implements MemberAccess {
     return result;
   }
 
+  /**
+   * 恢复成员的可访问性状态。由于翻转 accessible 标志不是线程安全的，因此不执行任何操作。
+   *
+   * @param context OgnlContext
+   * @param target 目标对象
+   * @param member 要访问的成员
+   * @param propertyName 属性名称
+   * @param state 之前保存的可访问状态
+   */
   @Override
   public void restore(Map context, Object target, Member member, String propertyName,
       Object state) {
     // Flipping accessible flag is not thread safe. See #1648
   }
 
+  /**
+   * 判断当前环境是否允许访问指定成员。
+   *
+   * @param context OgnlContext
+   * @param target 目标对象
+   * @param member 要访问的成员
+   * @param propertyName 属性名称
+   * @return 若允许访问则返回 true，否则返回 false
+   */
   @Override
   public boolean isAccessible(Map context, Object target, Member member, String propertyName) {
     return canControlMemberAccessible;

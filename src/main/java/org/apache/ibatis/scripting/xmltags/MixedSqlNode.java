@@ -18,17 +18,34 @@ package org.apache.ibatis.scripting.xmltags;
 import java.util.List;
 
 /**
+ * MixedSqlNode - 将多个子 SqlNode 组合成一个整体执行
+ *
  * @author Clinton Begin
  */
 public class MixedSqlNode implements SqlNode {
+  /**
+   * 子 SqlNode List
+   */
   private final List<SqlNode> contents;
 
+  /**
+   * 构造方法
+   *
+   * @param contents 子 SqlNode List
+   */
   public MixedSqlNode(List<SqlNode> contents) {
     this.contents = contents;
   }
 
+  /**
+   * 依次应用所有子 SqlNode 到 DynamicContext 中
+   *
+   * @param context DynamicContext
+   * @return 始终返回 true
+   */
   @Override
   public boolean apply(DynamicContext context) {
+    // 遍历所有子 SqlNode，逐个应用到 DynamicContext 中
     contents.forEach(node -> node.apply(context));
     return true;
   }

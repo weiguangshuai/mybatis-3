@@ -31,6 +31,14 @@ import org.apache.ibatis.session.Configuration;
  */
 public class RawLanguageDriver extends XMLLanguageDriver {
 
+  /**
+   * 从 XNode 创建静态 SqlSource，并校验不含动态内容
+   *
+   * @param configuration Configuration
+   * @param script XNode 脚本
+   * @param parameterType 参数类型
+   * @return 静态 SqlSource 实例
+   */
   @Override
   public SqlSource createSqlSource(Configuration configuration, XNode script, Class<?> parameterType) {
     SqlSource source = super.createSqlSource(configuration, script, parameterType);
@@ -38,6 +46,14 @@ public class RawLanguageDriver extends XMLLanguageDriver {
     return source;
   }
 
+  /**
+   * 从脚本字符串创建静态 SqlSource，并校验不含动态内容
+   *
+   * @param configuration Configuration
+   * @param script SQL 脚本字符串
+   * @param parameterType 参数类型
+   * @return 静态 SqlSource 实例
+   */
   @Override
   public SqlSource createSqlSource(Configuration configuration, String script, Class<?> parameterType) {
     SqlSource source = super.createSqlSource(configuration, script, parameterType);
@@ -45,7 +61,13 @@ public class RawLanguageDriver extends XMLLanguageDriver {
     return source;
   }
 
+  /**
+   * 校验 SqlSource 必须为静态类型，否则抛出异常
+   *
+   * @param source SqlSource 实例
+   */
   private void checkIsNotDynamic(SqlSource source) {
+    // 若生成的不是 RawSqlSource，说明包含动态标签，直接报错
     if (!RawSqlSource.class.equals(source.getClass())) {
       throw new BuilderException("Dynamic content is not allowed when using RAW language");
     }

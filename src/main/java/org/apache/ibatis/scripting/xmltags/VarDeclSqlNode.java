@@ -16,21 +16,39 @@
 package org.apache.ibatis.scripting.xmltags;
 
 /**
+ * VarDeclSqlNode - 负责将 OGNL 表达式的计算结果绑定到 DynamicContext 中
+ *
  * @author Frank D. Martinez [mnesarco]
  */
 public class VarDeclSqlNode implements SqlNode {
 
+  /** 变量名 */
   private final String name;
+  /** OGNL 表达式 */
   private final String expression;
 
+  /**
+   * 构造方法
+   *
+   * @param name 变量名
+   * @param exp  OGNL 表达式
+   */
   public VarDeclSqlNode(String name, String exp) {
     this.name = name;
     this.expression = exp;
   }
 
+  /**
+   * 执行 OGNL 表达式并将结果绑定到 DynamicContext 中
+   *
+   * @param context DynamicContext
+   * @return 始终返回 true
+   */
   @Override
   public boolean apply(DynamicContext context) {
+    // 通过 OGNL 计算表达式值
     final Object value = OgnlCache.getValue(expression, context.getBindings());
+    // 将结果绑定到 DynamicContext，供后续 SqlNode 引用
     context.bind(name, value);
     return true;
   }

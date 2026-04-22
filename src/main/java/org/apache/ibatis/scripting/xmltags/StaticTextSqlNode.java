@@ -16,15 +16,29 @@
 package org.apache.ibatis.scripting.xmltags;
 
 /**
+ * StaticTextSqlNode - 封装不包含动态内容的纯文本 SQL 片段
+ *
  * @author Clinton Begin
  */
 public class StaticTextSqlNode implements SqlNode {
+  /** 静态 SQL 文本内容 */
   private final String text;
 
+  /**
+   * 构造方法
+   *
+   * @param text 静态 SQL 文本
+   */
   public StaticTextSqlNode(String text) {
     this.text = text;
   }
 
+  /**
+   * 将静态文本追加到 DynamicContext 中
+   *
+   * @param context DynamicContext
+   * @return 始终返回 true
+   */
   @Override
   public boolean apply(DynamicContext context) {
     context.appendSql(text);

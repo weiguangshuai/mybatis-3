@@ -25,21 +25,49 @@ import java.util.StringTokenizer;
 import org.apache.ibatis.session.Configuration;
 
 /**
+ * 处理动态 SQL 中的 trim SqlNode，支持前缀/后缀的添加与覆盖。
+ *
  * @author Clinton Begin
  */
 public class TrimSqlNode implements SqlNode {
 
+  /** 子 SqlNode */
   private final SqlNode contents;
+  /** 需要添加的前缀 */
   private final String prefix;
+  /** 需要添加的后缀 */
   private final String suffix;
+  /** 需要移除的前缀 List */
   private final List<String> prefixesToOverride;
+  /** 需要移除的后缀 List */
   private final List<String> suffixesToOverride;
+  /** MyBatis Configuration */
   private final Configuration configuration;
 
+  /**
+   * 构造方法，支持以管道符分隔的覆盖字符串。
+   *
+   * @param configuration MyBatis Configuration
+   * @param contents 子 SqlNode
+   * @param prefix 需要添加的前缀
+   * @param prefixesToOverride 以 "|" 分隔的需要移除的前缀
+   * @param suffix 需要添加的后缀
+   * @param suffixesToOverride 以 "|" 分隔的需要移除的后缀
+   */
   public TrimSqlNode(Configuration configuration, SqlNode contents, String prefix, String prefixesToOverride, String suffix, String suffixesToOverride) {
     this(configuration, contents, prefix, parseOverrides(prefixesToOverride), suffix, parseOverrides(suffixesToOverride));
   }
 
+  /**
+   * 受保护的构造方法，直接使用 List 形式的覆盖项。
+   *
+   * @param configuration MyBatis Configuration
+   * @param contents 子 SqlNode
+   * @param prefix 需要添加的前缀
+   * @param prefixesToOverride 需要移除的前缀 List
+   * @param suffix 需要添加的后缀
+   * @param suffixesToOverride 需要移除的后缀 List
+   */
   protected TrimSqlNode(Configuration configuration, SqlNode contents, String prefix, List<String> prefixesToOverride, String suffix, List<String> suffixesToOverride) {
     this.contents = contents;
     this.prefix = prefix;
@@ -49,6 +77,12 @@ public class TrimSqlNode implements SqlNode {
     this.configuration = configuration;
   }
 
+  /**
+   * 应用 trim 逻辑：先执行子 SqlNode，再对生成的 SQL 进行前缀/后缀处理。
+   *
+   * @param context DynamicContext
+   * @return 子 SqlNode 是否成功应用
+   */
   @Override
   public boolean apply(DynamicContext context) {
     FilteredDynamicContext filteredDynamicContext = new FilteredDynamicContext(context);
@@ -57,6 +91,12 @@ public class TrimSqlNode implements SqlNode {
     return result;
   }
 
+  /**
+   * 将管道符分隔的字符串解析为大写的覆盖项 List。
+   *
+   * @param overrides 以 "|" 分隔的覆盖字符串
+   * @return 解析后的覆盖项 List，若为空则返回空 List
+   */
   private static List<String> parseOverrides(String overrides) {
     if (overrides != null) {
       final StringTokenizer parser = new StringTokenizer(overrides, "|", false);
@@ -69,12 +109,24 @@ public class TrimSqlNode implements SqlNode {
     return Collections.emptyList();
   }
 
+  /**
+   * 内部类，用于拦截子 SqlNode 生成的 SQL，并在最后统一应用 trim 逻辑。
+   */
   private class FilteredDynamicContext extends DynamicContext {
+    /** 被代理的 DynamicContext */
     private DynamicContext delegate;
+    /** 前缀是否已应用 */
     private boolean prefixApplied;
+    /** 后缀是否已应用 */
     private boolean suffixApplied;
+    /** 缓存子 SqlNode 生成的 SQL */
     private StringBuilder sqlBuffer;
 
+    /**
+     * 构造方法。
+     *
+     * @param delegate 被代理的 DynamicContext
+     */
     public FilteredDynamicContext(DynamicContext delegate) {
       super(configuration, null);
       this.delegate = delegate;
@@ -83,6 +135,9 @@ public class TrimSqlNode implements SqlNode {
       this.sqlBuffer = new StringBuilder();
     }
 
+    /**
+     * 对缓存的 SQL 执行 trim 处理，并将结果追加到代理 DynamicContext 中。
+     */
     public void applyAll() {
       sqlBuffer = new StringBuilder(sqlBuffer.toString().trim());
       String trimmedUppercaseSql = sqlBuffer.toString().toUpperCase(Locale.ENGLISH);
@@ -118,6 +173,12 @@ public class TrimSqlNode implements SqlNode {
       return delegate.getSql();
     }
 
+    /**
+     * 应用前缀逻辑：先移除匹配的前缀，再插入指定前缀。
+     *
+     * @param sql 当前 SQL 缓冲区
+     * @param trimmedUppercaseSql 转大写后的 SQL，用于匹配
+     */
     private void applyPrefix(StringBuilder sql, String trimmedUppercaseSql) {
       if (!prefixApplied) {
         prefixApplied = true;
@@ -136,6 +197,12 @@ public class TrimSqlNode implements SqlNode {
       }
     }
 
+    /**
+     * 应用后缀逻辑：先移除匹配的后缀，再追加指定后缀。
+     *
+     * @param sql 当前 SQL 缓冲区
+     * @param trimmedUppercaseSql 转大写后的 SQL，用于匹配
+     */
     private void applySuffix(StringBuilder sql, String trimmedUppercaseSql) {
       if (!suffixApplied) {
         suffixApplied = true;

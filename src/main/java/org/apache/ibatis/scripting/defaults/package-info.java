@@ -14,6 +14,6 @@
  *    limitations under the License.
  */
 /**
- * Default beans for languages.
+ * 脚本语言默认实现，提供 MyBatis 内置的 SQL 语言解析与处理组件。
  */
 package org.apache.ibatis.scripting.defaults;

@@ -21,12 +21,23 @@ import java.util.List;
 import org.apache.ibatis.session.Configuration;
 
 /**
+ * 处理动态 SQL 中 <where> 标签，自动添加 WHERE 前缀并去除多余的 AND/OR。
+ *
  * @author Clinton Begin
  */
 public class WhereSqlNode extends TrimSqlNode {
 
+  /**
+   * 需要被去除的前缀 List，包括 AND/OR 及其后跟随的各种空白字符。
+   */
   private static List<String> prefixList = Arrays.asList("AND ","OR ","AND\n", "OR\n", "AND\r", "OR\r", "AND\t", "OR\t");
 
+  /**
+   * 构造 WhereSqlNode 实例，使用 WHERE 作为前缀并指定需要覆盖的前缀 List。
+   *
+   * @param configuration MyBatis Configuration
+   * @param contents 内部的 SqlNode
+   */
   public WhereSqlNode(Configuration configuration, SqlNode contents) {
     super(configuration, contents, "WHERE", prefixList, null, null);
   }

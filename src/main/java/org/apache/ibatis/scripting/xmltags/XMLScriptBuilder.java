@@ -30,19 +30,38 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 /**
+ * 解析 XML 动态 SQL 脚本，将其构建为 SqlSource。
+ *
  * @author Clinton Begin
  */
 public class XMLScriptBuilder extends BaseBuilder {
 
+  /** 当前解析的 XNode */
   private final XNode context;
+  /** 标记 SQL 是否为动态脚本 */
   private boolean isDynamic;
+  /** 参数类型 */
   private final Class<?> parameterType;
+  /** XML 动态标签 NodeHandler Map */
   private final Map<String, NodeHandler> nodeHandlerMap = new HashMap<>();
 
+  /**
+   * 构造方法（无参数类型）。
+   *
+   * @param configuration Configuration
+   * @param context XNode
+   */
   public XMLScriptBuilder(Configuration configuration, XNode context) {
     this(configuration, context, null);
   }
 
+  /**
+   * 构造方法。
+   *
+   * @param configuration Configuration
+   * @param context XNode
+   * @param parameterType 参数类型
+   */
   public XMLScriptBuilder(Configuration configuration, XNode context, Class<?> parameterType) {
     super(configuration);
     this.context = context;
@@ -51,6 +70,7 @@ public class XMLScriptBuilder extends BaseBuilder {
   }
 
 
+  /** 初始化动态标签 NodeHandler Map。 */
   private void initNodeHandlerMap() {
     nodeHandlerMap.put("trim", new TrimHandler());
     nodeHandlerMap.put("where", new WhereHandler());
@@ -63,6 +83,11 @@ public class XMLScriptBuilder extends BaseBuilder {
     nodeHandlerMap.put("bind", new BindHandler());
   }
 
+  /**
+   * 解析脚本 SqlNode，返回对应的 SqlSource。
+   *
+   * @return SqlSource 实例
+   */
   public SqlSource parseScriptNode() {
     MixedSqlNode rootSqlNode = parseDynamicTags(context);
     SqlSource sqlSource;
@@ -74,6 +99,12 @@ public class XMLScriptBuilder extends BaseBuilder {
     return sqlSource;
   }
 
+  /**
+   * 递归解析 XML 动态标签，构建 MixedSqlNode。
+   *
+   * @param node XNode
+   * @return MixedSqlNode 实例
+   */
   protected MixedSqlNode parseDynamicTags(XNode node) {
     List<SqlNode> contents = new ArrayList<>();
     NodeList children = node.getNode().getChildNodes();
@@ -101,10 +132,12 @@ public class XMLScriptBuilder extends BaseBuilder {
     return new MixedSqlNode(contents);
   }
 
+  /** 动态标签 NodeHandler 接口 */
   private interface NodeHandler {
     void handleNode(XNode nodeToHandle, List<SqlNode> targetContents);
   }
 
+  /** 处理 <bind> 标签，将变量绑定到 OgnlContext */
   private class BindHandler implements NodeHandler {
     public BindHandler() {
       // Prevent Synthetic Access
@@ -119,6 +152,7 @@ public class XMLScriptBuilder extends BaseBuilder {
     }
   }
 
+  /** 处理 <trim> 标签，支持前缀/后缀的添加与覆盖 */
   private class TrimHandler implements NodeHandler {
     public TrimHandler() {
       // Prevent Synthetic Access
@@ -136,6 +170,7 @@ public class XMLScriptBuilder extends BaseBuilder {
     }
   }
 
+  /** 处理 <where> 标签，自动处理前导 AND/OR */
   private class WhereHandler implements NodeHandler {
     public WhereHandler() {
       // Prevent Synthetic Access
@@ -149,6 +184,7 @@ public class XMLScriptBuilder extends BaseBuilder {
     }
   }
 
+  /** 处理 <set> 标签，用于动态生成 UPDATE 的 SET 子句 */
   private class SetHandler implements NodeHandler {
     public SetHandler() {
       // Prevent Synthetic Access
@@ -162,6 +198,7 @@ public class XMLScriptBuilder extends BaseBuilder {
     }
   }
 
+  /** 处理 <foreach> 标签，用于遍历集合并拼接 SQL */
   private class ForEachHandler implements NodeHandler {
     public ForEachHandler() {
       // Prevent Synthetic Access
@@ -182,6 +219,7 @@ public class XMLScriptBuilder extends BaseBuilder {
     }
   }
 
+  /** 处理 <if> 标签，根据条件判断是否包含该段 SQL */
   private class IfHandler implements NodeHandler {
     public IfHandler() {
       // Prevent Synthetic Access
@@ -196,6 +234,7 @@ public class XMLScriptBuilder extends BaseBuilder {
     }
   }
 
+  /** 处理 <otherwise> 标签，作为 choose 的默认分支 */
   private class OtherwiseHandler implements NodeHandler {
     public OtherwiseHandler() {
       // Prevent Synthetic Access
@@ -208,6 +247,7 @@ public class XMLScriptBuilder extends BaseBuilder {
     }
   }
 
+  /** 处理 <choose> 标签，按顺序匹配 when 分支，否则使用 otherwise */
   private class ChooseHandler implements NodeHandler {
     public ChooseHandler() {
       // Prevent Synthetic Access
@@ -223,6 +263,7 @@ public class XMLScriptBuilder extends BaseBuilder {
       targetContents.add(chooseSqlNode);
     }
 
+    /** 遍历 choose 子 SqlNode，将 when 和 otherwise 分别收集到对应 List */
     private void handleWhenOtherwiseNodes(XNode chooseSqlNode, List<SqlNode> ifSqlNodes, List<SqlNode> defaultSqlNodes) {
       List<XNode> children = chooseSqlNode.getChildren();
       for (XNode child : children) {
@@ -236,6 +277,7 @@ public class XMLScriptBuilder extends BaseBuilder {
       }
     }
 
+    /** 获取 choose 的默认分支，若存在多个则抛出异常 */
     private SqlNode getDefaultSqlNode(List<SqlNode> defaultSqlNodes) {
       SqlNode defaultSqlNode = null;
       if (defaultSqlNodes.size() == 1) {

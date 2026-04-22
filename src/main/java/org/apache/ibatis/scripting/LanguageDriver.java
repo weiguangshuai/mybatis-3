@@ -23,39 +23,41 @@ import org.apache.ibatis.parsing.XNode;
 import org.apache.ibatis.scripting.defaults.DefaultParameterHandler;
 import org.apache.ibatis.session.Configuration;
 
+/**
+ * LanguageDriver 接口 - 定义创建 ParameterHandler 和 SqlSource 的方法，支持 XML 和注解两种配置方式
+ */
 public interface LanguageDriver {
 
   /**
-   * Creates a {@link ParameterHandler} that passes the actual parameters to the the JDBC statement.
+   * 创建 ParameterHandler，将实际参数传递给 JDBC 语句
    *
-   * @author Frank D. Martinez [mnesarco]
-   * @param mappedStatement The mapped statement that is being executed
-   * @param parameterObject The input parameter object (can be null)
-   * @param boundSql The resulting SQL once the dynamic language has been executed.
-   * @return the parameter handler
+   * @param mappedStatement 正在执行的 MappedStatement
+   * @param parameterObject 输入参数对象（可为 null）
+   * @param boundSql 动态语言执行后的 BoundSql
+   * @return ParameterHandler 实例
    * @see DefaultParameterHandler
    */
   ParameterHandler createParameterHandler(MappedStatement mappedStatement, Object parameterObject, BoundSql boundSql);
 
   /**
-   * Creates an {@link SqlSource} that will hold the statement read from a mapper xml file.
-   * It is called during startup, when the mapped statement is read from a class or an xml file.
+   * 从 Mapper XML 文件中读取语句并创建 SqlSource
+   * 在启动阶段，从类或 XML 文件中读取 MappedStatement 时调用
    *
-   * @param configuration The MyBatis configuration
-   * @param script XNode parsed from a XML file
-   * @param parameterType input parameter type got from a mapper method or specified in the parameterType xml attribute. Can be null.
-   * @return the sql source
+   * @param configuration MyBatis Configuration
+   * @param script 从 XML 文件解析得到的 XNode
+   * @param parameterType 从 Mapper 方法或 parameterType XML 属性中获取的输入参数类型，可为 null
+   * @return SqlSource 实例
    */
   SqlSource createSqlSource(Configuration configuration, XNode script, Class<?> parameterType);
 
   /**
-   * Creates an {@link SqlSource} that will hold the statement read from an annotation.
-   * It is called during startup, when the mapped statement is read from a class or an xml file.
+   * 从注解中读取语句并创建 SqlSource
+   * 在启动阶段，从类或 XML 文件中读取 MappedStatement 时调用
    *
-   * @param configuration The MyBatis configuration
-   * @param script The content of the annotation
-   * @param parameterType input parameter type got from a mapper method or specified in the parameterType xml attribute. Can be null.
-   * @return the sql source
+   * @param configuration MyBatis Configuration
+   * @param script 注解内容
+   * @param parameterType 从 Mapper 方法或 parameterType XML 属性中获取的输入参数类型，可为 null
+   * @return SqlSource 实例
    */
   SqlSource createSqlSource(Configuration configuration, String script, Class<?> parameterType);
 

@@ -32,14 +32,24 @@ import org.apache.ibatis.builder.BuilderException;
  */
 public final class OgnlCache {
 
+  /** OGNL MemberAccess */
   private static final OgnlMemberAccess MEMBER_ACCESS = new OgnlMemberAccess();
+  /** OGNL ClassResolver */
   private static final OgnlClassResolver CLASS_RESOLVER = new OgnlClassResolver();
+  /** OGNL 表达式解析结果缓存 */
   private static final Map<String, Object> expressionCache = new ConcurrentHashMap<>();
 
   private OgnlCache() {
     // Prevent Instantiation of Static Class
   }
 
+  /**
+   * 解析并执行 OGNL 表达式，返回结果值。
+   *
+   * @param expression OGNL 表达式
+   * @param root 表达式求值的根对象
+   * @return 表达式计算结果
+   */
   public static Object getValue(String expression, Object root) {
     try {
       Map context = Ognl.createDefaultContext(root, MEMBER_ACCESS, CLASS_RESOLVER, null);
@@ -49,9 +59,16 @@ public final class OgnlCache {
     }
   }
 
+  /**
+   * 从缓存中获取已解析的表达式，若不存在则解析并加入缓存。
+   *
+   * @param expression OGNL 表达式字符串
+   * @return 解析后的 OGNL expression Node
+   */
   private static Object parseExpression(String expression) throws OgnlException {
     Object node = expressionCache.get(expression);
     if (node == null) {
+      // 缓存未命中，解析表达式并放入缓存
       node = Ognl.parseExpression(expression);
       expressionCache.put(expression, node);
     }

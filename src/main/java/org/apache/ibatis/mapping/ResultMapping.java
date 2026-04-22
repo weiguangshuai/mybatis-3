@@ -32,35 +32,65 @@ import org.apache.ibatis.type.TypeHandlerRegistry;
  */
 public class ResultMapping {
 
-  /** MyBatis 全局配置对象 */
+  /**
+   * MyBatis 全局配置对象
+   */
   private Configuration configuration;
-  /** 映射的 Java 对象属性名 */
+  /**
+   * 映射的 Java 对象属性名
+   */
   private String property;
-  /** 对应的数据库列名 */
+  /**
+   * 对应的数据库列名
+   */
   private String column;
-  /** Java 类型 */
+  /**
+   * Java 类型
+   */
   private Class<?> javaType;
-  /** JDBC 类型 */
+  /**
+   * JDBC 类型
+   */
   private JdbcType jdbcType;
-  /** 类型转换处理器 */
+  /**
+   * 类型转换处理器
+   */
   private TypeHandler<?> typeHandler;
-  /** 嵌套结果映射 ID，用于关联查询 */
+  /**
+   * 嵌套结果映射 ID，用于关联查询
+   */
   private String nestedResultMapId;
-  /** 嵌套查询 ID，用于延迟加载 */
+  /**
+   * 嵌套查询 ID，用于延迟加载
+   */
   private String nestedQueryId;
-  /** 非空列集合，用于判断是否设置属性值 */
+  /**
+   * 非空列集合，用于判断是否设置属性值
+   */
   private Set<String> notNullColumns;
-  /** 列名前缀，用于嵌套查询 */
+  /**
+   * 列名前缀，用于嵌套查询
+   */
   private String columnPrefix;
-  /** 结果标志列表，标识主键或构造函数参数等 */
+  /**
+   * 结果标志列表，标识主键或构造函数参数等
+   */
   private List<ResultFlag> flags;
-  /** 复合属性映射列表 */
+  /**
+   * 复合属性映射列表
+   */
   private List<ResultMapping> composites;
-  /** 结果集名称，支持多结果集映射 */
+  /**
+   * 结果集名称，支持多结果集映射
+   */
   private String resultSet;
-  /** 外键列名，用于关联查询 */
+  /**
+   * 外键列名，用于关联查询
+   */
   private String foreignColumn;
-  /** 是否延迟加载 */
+  /**
+   * 是否延迟加载
+   */
   private boolean lazy;
 
   ResultMapping() {

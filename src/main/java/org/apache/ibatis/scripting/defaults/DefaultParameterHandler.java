@@ -33,18 +33,32 @@ import org.apache.ibatis.type.TypeHandler;
 import org.apache.ibatis.type.TypeHandlerRegistry;
 
 /**
+ * DefaultParameterHandler - 负责将 SQL 参数设置到 PreparedStatement 中
+ *
  * @author Clinton Begin
  * @author Eduardo Macarron
  */
 public class DefaultParameterHandler implements ParameterHandler {
 
+  /** TypeHandlerRegistry，用于查找参数对应的 TypeHandler */
   private final TypeHandlerRegistry typeHandlerRegistry;
 
+  /** 当前 MappedStatement */
   private final MappedStatement mappedStatement;
+  /** 实际传入的参数对象 */
   private final Object parameterObject;
+  /** 当前 BoundSql */
   private final BoundSql boundSql;
+  /** MyBatis Configuration */
   private final Configuration configuration;
 
+  /**
+   * 构造 DefaultParameterHandler
+   *
+   * @param mappedStatement MappedStatement
+   * @param parameterObject 参数对象
+   * @param boundSql BoundSql
+   */
   public DefaultParameterHandler(MappedStatement mappedStatement, Object parameterObject, BoundSql boundSql) {
     this.mappedStatement = mappedStatement;
     this.configuration = mappedStatement.getConfiguration();
@@ -54,11 +68,17 @@ public class DefaultParameterHandler implements ParameterHandler {
   }
 
   @Override
+  /** 获取当前参数对象 */
   public Object getParameterObject() {
     return parameterObject;
   }
 
   @Override
+  /**
+   * 将解析后的参数按顺序设置到 PreparedStatement 中
+   *
+   * @param ps 预编译语句对象
+   */
   public void setParameters(PreparedStatement ps) {
     ErrorContext.instance().activity("setting parameters").object(mappedStatement.getParameterMap().getId());
     List<ParameterMapping> parameterMappings = boundSql.getParameterMappings();
@@ -68,19 +88,23 @@ public class DefaultParameterHandler implements ParameterHandler {
         if (parameterMapping.getMode() != ParameterMode.OUT) {
           Object value;
           String propertyName = parameterMapping.getProperty();
-          if (boundSql.hasAdditionalParameter(propertyName)) { // issue #448 ask first for additional params
+          // issue #448：优先从附加参数中取值（如 foreach 生成的动态参数）
+          if (boundSql.hasAdditionalParameter(propertyName)) {
             value = boundSql.getAdditionalParameter(propertyName);
           } else if (parameterObject == null) {
             value = null;
           } else if (typeHandlerRegistry.hasTypeHandler(parameterObject.getClass())) {
+            // 参数对象本身已有对应的 TypeHandler，直接作为值使用
             value = parameterObject;
           } else {
+            // 通过反射从参数对象中读取属性值
             MetaObject metaObject = configuration.newMetaObject(parameterObject);
             value = metaObject.getValue(propertyName);
           }
           TypeHandler typeHandler = parameterMapping.getTypeHandler();
           JdbcType jdbcType = parameterMapping.getJdbcType();
           if (value == null && jdbcType == null) {
+            // 值为空且未指定 JdbcType，使用全局默认 Configuration
             jdbcType = configuration.getJdbcTypeForNull();
           }
           try {

@@ -21,13 +21,24 @@ import java.util.List;
 import org.apache.ibatis.session.Configuration;
 
 /**
+ * 代表 SQL 中的 SET SqlNode，用于动态生成 UPDATE 语句的 SET 子句。
+ * 继承自 TrimSqlNode，自动去除末尾多余的逗号。
+ *
  * @author Clinton Begin
  */
 public class SetSqlNode extends TrimSqlNode {
 
+  /** 用于匹配和去除多余逗号的单元素 List */
   private static final List<String> COMMA = Collections.singletonList(",");
 
+  /**
+   * 构造一个 SET SqlNode。
+   *
+   * @param configuration Configuration
+   * @param contents 子 SqlNode
+   */
   public SetSqlNode(Configuration configuration,SqlNode contents) {
+    // 调用父类构造，前缀为 "SET"，前后缀均去除多余逗号
     super(configuration, contents, "SET", COMMA, null, COMMA);
   }
 
